@@ -28,7 +28,17 @@ export async function GET(request: Request, { params }: RouteParams) {
         },
         bracket: {
           include: {
-            matches: true
+            matches: {
+              include: {
+                fencer1: true,
+                fencer2: true,
+                winner: true
+              },
+              orderBy: [
+                { round: 'asc' },
+                { position: 'asc' }
+              ]
+            }
           }
         }
       }

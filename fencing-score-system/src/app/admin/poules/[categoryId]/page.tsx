@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { PouleMatrix } from '@/components/poules/PouleMatrix'
-import { ArrowLeft, Trophy, Play } from 'lucide-react'
+import { ArrowLeft, Trophy, Play, RotateCcw } from 'lucide-react'
 
 interface Fencer {
   id: string
@@ -56,6 +56,7 @@ export default function PoulesPage({ params }: PageProps) {
   const [category, setCategory] = useState<Category | null>(null)
   const [loading, setLoading] = useState(true)
   const [isEliminationOpen, setIsEliminationOpen] = useState(false)
+  const [isResetOpen, setIsResetOpen] = useState(false)
   const [eliminationRate, setEliminationRate] = useState(25)
   const [hasThirdPlace, setHasThirdPlace] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -115,6 +116,32 @@ export default function PoulesPage({ params }: PageProps) {
     }
   }
 
+  const handleResetPoules = async () => {
+    if (!category) return
+
+    setIsSubmitting(true)
+
+    try {
+      const res = await fetch(`/api/categories/${categoryId}/reset-poules`, {
+        method: 'POST'
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        alert('已重置分組，將返回檢錄頁面')
+        router.push('/admin/check-in')
+      } else {
+        alert(data.error || '重置失敗')
+      }
+    } catch (error) {
+      console.error('Reset poules error:', error)
+      alert('重置失敗')
+    } finally {
+      setIsSubmitting(false)
+      setIsResetOpen(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -150,12 +177,24 @@ export default function PoulesPage({ params }: PageProps) {
           </div>
         </div>
         
-        {allPoulesCompleted && category.status === 'poule' && (
-          <Button onClick={() => setIsEliminationOpen(true)}>
-            <Trophy className="h-4 w-4 mr-2" />
-            進入淘汰賽
-          </Button>
-        )}
+        <div className="flex space-x-2">
+          {category.status === 'poule' && (
+            <Button
+              variant="outline"
+              onClick={() => setIsResetOpen(true)}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              重新分組
+            </Button>
+          )}
+          
+          {allPoulesCompleted && category.status === 'poule' && (
+            <Button onClick={() => setIsEliminationOpen(true)}>
+              <Trophy className="h-4 w-4 mr-2" />
+              進入淘汰賽
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* 分組賽完成進度 */}
@@ -247,6 +286,35 @@ export default function PoulesPage({ params }: PageProps) {
                   開始淘汰賽
                 </>
               )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 重新分組 Modal */}
+      <Modal
+        isOpen={isResetOpen}
+        onClose={() => setIsResetOpen(false)}
+        title="重新分組"
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800 font-medium mb-2">⚠️ 警告</p>
+            <p className="text-red-700 text-sm">
+              此操作將會刪除所有分組賽記錄和已填寫的分數，且無法復原。確定要重新分組嗎？
+            </p>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setIsResetOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleResetPoules}
+              disabled={isSubmitting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isSubmitting ? '處理中...' : '確定重新分組'}
             </Button>
           </div>
         </div>

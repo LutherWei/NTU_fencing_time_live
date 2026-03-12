@@ -106,7 +106,7 @@ export function PouleMatrix({
     const s1 = parseInt(score1)
     const s2 = parseInt(score2)
     
-    if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
+    if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0 || s1 > 5 || s2 > 5) {
       alert('請輸入有效分數')
       return
     }

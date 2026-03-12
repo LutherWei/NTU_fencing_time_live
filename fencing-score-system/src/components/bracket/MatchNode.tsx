@@ -55,7 +55,7 @@ export function MatchNode({ match, isAdmin = false, onUpdate }: MatchNodeProps) 
     const s1 = parseInt(score1)
     const s2 = parseInt(score2)
 
-    if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
+    if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0 || s1 > 15 || s2 > 15) {
       alert('請輸入有效分數')
       return
     }
@@ -106,17 +106,17 @@ export function MatchNode({ match, isAdmin = false, onUpdate }: MatchNodeProps) 
     return (
       <div className={cn(
         "flex items-center justify-between px-3 py-2",
-        isWinner && "bg-green-100",
+        isWinner && match.completed && "bg-green-100",
         !isWinner && match.completed && fencer && "bg-red-50"
       )}>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 flex-1 min-w-0">
           {fencer?.seedRank && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 flex-shrink-0">
               [{fencer.seedRank}]
             </span>
           )}
           <span className={cn(
-            "font-medium",
+            "font-medium truncate",
             !fencer && "text-gray-400 italic"
           )}>
             {fencer?.name || 'TBD'}
@@ -124,7 +124,7 @@ export function MatchNode({ match, isAdmin = false, onUpdate }: MatchNodeProps) 
         </div>
         {match.completed && score !== null && (
           <span className={cn(
-            "font-bold ml-4",
+            "font-bold ml-4 flex-shrink-0",
             isWinner ? "text-green-700" : "text-red-600"
           )}>
             {score}

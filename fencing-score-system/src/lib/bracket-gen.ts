@@ -222,18 +222,22 @@ export function generateBracket(
 
 /**
  * 獲取輪次名稱
+ * round 代表該輪的比賽場數，round * 2 = 該輪參賽人數
+ * 例如：round = 4 代表 4 場比賽，共 8 人參賽，稱為「八強」
  */
 export function getRoundName(round: number, isThirdPlace: boolean = false): string {
   if (isThirdPlace) return '三四名決定戰'
   
-  switch (round) {
-    case 1: return '決賽'
-    case 2: return '四強'
-    case 4: return '八強'
-    case 8: return '十六強'
-    case 16: return '三十二強'
-    case 32: return '六十四強'
-    default: return `${round * 2}強`
+  const playerCount = round * 2
+  
+  switch (playerCount) {
+    case 2: return '決賽'
+    case 4: return '四強'
+    case 8: return '八強'
+    case 16: return '十六強'
+    case 32: return '三十二強'
+    case 64: return '六十四強'
+    default: return `${playerCount}強`
   }
 }
 
