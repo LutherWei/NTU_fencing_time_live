@@ -56,7 +56,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700"></div>
       </div>
     )
   }
@@ -89,7 +89,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   className={cn(
                     "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-blue-50 text-blue-700"
+                      ? "bg-red-100 text-red-800"
                       : "text-gray-700 hover:bg-gray-100"
                   )}
                 >

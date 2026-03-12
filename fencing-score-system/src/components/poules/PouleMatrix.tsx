@@ -199,7 +199,7 @@ export function PouleMatrix({
                       isDiagonal && "bg-gray-800",
                       !isDiagonal && result && result.isWinner && "bg-green-100",
                       !isDiagonal && result && !result.isWinner && "bg-red-100",
-                      !isDiagonal && isAdmin && "cursor-pointer hover:bg-blue-50"
+                      !isDiagonal && isAdmin && "cursor-pointer hover:bg-red-50"
                     )}
                     onClick={() => handleCellClick(rowFencer, colFencer)}
                   >

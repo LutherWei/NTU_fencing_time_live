@@ -145,7 +145,7 @@ export default function PoulesPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700 mx-auto"></div>
       </div>
     )
   }
@@ -154,7 +154,7 @@ export default function PoulesPage({ params }: PageProps) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">找不到該組別</p>
-        <Link href="/admin/dashboard" className="text-blue-600 hover:underline mt-4 inline-block">
+        <Link href="/admin/dashboard" className="text-red-700 hover:underline mt-4 inline-block">
           返回後台
         </Link>
       </div>

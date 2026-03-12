@@ -73,7 +73,7 @@ interface Category {
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   checkin: { label: '檢錄中', color: 'bg-yellow-100 text-yellow-800' },
-  poule: { label: '分組賽', color: 'bg-blue-100 text-blue-800' },
+  poule: { label: '分組賽', color: 'bg-red-100 text-red-800' },
   elimination: { label: '淘汰賽', color: 'bg-purple-100 text-purple-800' },
   finished: { label: '已結束', color: 'bg-green-100 text-green-800' }
 }
@@ -133,7 +133,7 @@ export default function ResultsPage({ params }: PageProps) {
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700 mx-auto"></div>
           <p className="mt-4 text-gray-600">載入中...</p>
         </div>
       </div>
@@ -148,7 +148,7 @@ export default function ResultsPage({ params }: PageProps) {
           <Card>
             <CardContent className="py-12 text-center">
               <h3 className="text-lg font-medium text-gray-900">找不到該組別</h3>
-              <Link href="/" className="text-blue-600 hover:underline mt-2 inline-block">
+              <Link href="/" className="text-red-700 hover:underline mt-2 inline-block">
                 返回首頁
               </Link>
             </CardContent>
@@ -191,7 +191,7 @@ export default function ResultsPage({ params }: PageProps) {
               onClick={() => setActiveTab('poules')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'poules'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-red-500 text-red-700'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -202,7 +202,7 @@ export default function ResultsPage({ params }: PageProps) {
               onClick={() => setActiveTab('bracket')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'bracket'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-red-500 text-red-700'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -213,7 +213,7 @@ export default function ResultsPage({ params }: PageProps) {
               onClick={() => setActiveTab('rankings')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'rankings'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-red-500 text-red-700'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -270,99 +270,60 @@ export default function ResultsPage({ params }: PageProps) {
 
         {/* 排名 */}
         {activeTab === 'rankings' && (
-          <div className="space-y-6">
-            {/* 總排名 */}
-            <Card>
-              <CardHeader>
-                <CardTitle>總排名</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">名次</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
+          <Card>
+            <CardHeader>
+              <CardTitle>總排名</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">名次</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽勝率</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽得分</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽失分</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽淨得失分</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {rankings.map((fencer, idx) => (
+                      <tr key={fencer.id} className={idx < 3 ? 'bg-yellow-50' : ''}>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`font-bold ${
+                            idx === 0 ? 'text-yellow-600' :
+                            idx === 1 ? 'text-gray-500' :
+                            idx === 2 ? 'text-amber-700' : 'text-gray-900'
+                          }`}>
+                            {fencer.finalRank || fencer.seedRank || idx + 1}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                          {fencer.name}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-center text-gray-600">
+                          {formatWinRate(fencer.winRate)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-center text-gray-600">
+                          {fencer.touchesScored}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-center text-gray-600">
+                          {fencer.touchesReceived}
+                        </td>
+                        <td className={`px-4 py-3 text-sm text-center font-medium ${
+                          fencer.indicator > 0 ? 'text-green-600' :
+                          fencer.indicator < 0 ? 'text-red-600' : 'text-gray-600'
+                        }`}>
+                          {formatIndicator(fencer.indicator)}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {rankings.map((fencer, idx) => (
-                        <tr key={fencer.id} className={idx < 3 ? 'bg-yellow-50' : ''}>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`font-bold ${
-                              idx === 0 ? 'text-yellow-600' :
-                              idx === 1 ? 'text-gray-500' :
-                              idx === 2 ? 'text-amber-700' : 'text-gray-900'
-                            }`}>
-                              {fencer.finalRank || fencer.seedRank || idx + 1}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                            {fencer.name}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 初賽排名（分組賽成績） */}
-            <Card>
-              <CardHeader>
-                <CardTitle>初賽排名</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">排名</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">勝率</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">得分</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">失分</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">淨得失分</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {[...category.fencers]
-                        .sort((a, b) => {
-                          if (a.seedRank && b.seedRank) return a.seedRank - b.seedRank
-                          return 0
-                        })
-                        .map((fencer, idx) => (
-                          <tr key={fencer.id}>
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                              {fencer.seedRank || idx + 1}
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                              {fencer.name}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-center">
-                              {formatWinRate(fencer.winRate)}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-center">
-                              {fencer.touchesScored}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-center">
-                              {fencer.touchesReceived}
-                            </td>
-                            <td className={`px-4 py-3 text-sm text-center font-medium ${
-                              fencer.indicator > 0 ? 'text-green-600' :
-                              fencer.indicator < 0 ? 'text-red-600' : ''
-                            }`}>
-                              {formatIndicator(fencer.indicator)}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </main>
     </div>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Swords, Lock } from 'lucide-react'
+import { Lock } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -42,13 +42,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-red-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-blue-600 p-3 rounded-full">
-              <Swords className="h-8 w-8 text-white" />
-            </div>
+          <div className="flex justify-center mb-4">  
+            <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain" />
           </div>
           <CardTitle className="text-2xl">管理員登入</CardTitle>
           <CardDescription>

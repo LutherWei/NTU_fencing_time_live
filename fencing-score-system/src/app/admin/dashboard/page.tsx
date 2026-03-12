@@ -26,7 +26,7 @@ interface Category {
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   checkin: { label: '檢錄中', color: 'bg-yellow-100 text-yellow-800' },
-  poule: { label: '分組賽', color: 'bg-blue-100 text-blue-800' },
+  poule: { label: '分組賽', color: 'bg-red-100 text-red-800' },
   elimination: { label: '淘汰賽', color: 'bg-purple-100 text-purple-800' },
   finished: { label: '已結束', color: 'bg-green-100 text-green-800' }
 }
@@ -34,6 +34,9 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 export default function DashboardPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [finishModalOpen, setFinishModalOpen] = useState(false)
+  const [categoryToFinish, setCategoryToFinish] = useState<Category | null>(null)
+  const [finishing, setFinishing] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -59,6 +62,40 @@ export default function DashboardPage() {
   const handleDeleteClick = (category: Category) => {
     setCategoryToDelete(category)
     setDeleteModalOpen(true)
+  }
+
+  const handleFinishClick = (category: Category) => {
+    setCategoryToFinish(category)
+    setFinishModalOpen(true)
+  }
+
+  const handleFinishConfirm = async () => {
+    if (!categoryToFinish) return
+
+    setFinishing(true)
+    try {
+      const res = await fetch(`/api/categories/${categoryToFinish.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'finished' })
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        await fetchCategories()
+        setFinishModalOpen(false)
+        setCategoryToFinish(null)
+      } else {
+        alert(`結束比賽失敗: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Finish category error:', error)
+      alert('結束比賽失敗，請稍後再試')
+    } finally {
+      setFinishing(false)
+    }
   }
 
   const handleDeleteConfirm = async () => {
@@ -156,7 +193,7 @@ export default function DashboardPage() {
         <CardContent>
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-700 mx-auto"></div>
             </div>
           ) : categories.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
@@ -188,6 +225,15 @@ export default function DashboardPage() {
                   </div>
                         
                   <div className="flex items-center space-x-2">
+                    {category.status !== 'finished' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleFinishClick(category)}
+                      >
+                        提前結束比賽
+                      </Button>
+                    )}
                     {category.status === 'finished' && (
                       <Button 
                         variant="ghost" 
@@ -231,6 +277,36 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <Modal
+        isOpen={finishModalOpen}
+        onClose={() => !finishing && setFinishModalOpen(false)}
+        title="結束比賽"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            確定要將「<span className="font-semibold text-gray-900">{categoryToFinish?.name}</span>」標記為已結束嗎？
+          </p>
+          <p className="text-sm text-amber-600">
+            結束後此組別會移至「已結束」，統計中的「進行中」也會同步扣除。
+          </p>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setFinishModalOpen(false)}
+              disabled={finishing}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleFinishConfirm}
+              disabled={finishing}
+            >
+              {finishing ? '處理中...' : '確認結束'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* 刪除確認對話框 */}
       <Modal

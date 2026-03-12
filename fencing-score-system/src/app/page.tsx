@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Swords, Users, Trophy, Clock } from 'lucide-react'
+import { Users, Trophy, Clock } from 'lucide-react'
 
 interface Category {
   id: string
@@ -17,7 +17,7 @@ interface Category {
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   checkin: { label: '檢錄中', color: 'bg-yellow-100 text-yellow-800' },
-  poule: { label: '分組賽', color: 'bg-blue-100 text-blue-800' },
+  poule: { label: '分組賽', color: 'bg-red-100 text-red-800' },
   elimination: { label: '淘汰賽', color: 'bg-purple-100 text-purple-800' },
   finished: { label: '已結束', color: 'bg-green-100 text-green-800' }
 }
@@ -53,26 +53,11 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <Swords className="h-16 w-16 mx-auto mb-4" />
-            <h1 className="text-4xl font-bold mb-4">
-              台大擊劍隊計分系統
-            </h1>
-            <p className="text-xl text-blue-100">
-              即時追蹤比賽進度與分數
-            </p>
-          </div>
-        </div>
-      </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700 mx-auto"></div>
             <p className="mt-4 text-gray-600">載入中...</p>
           </div>
         ) : categories.length === 0 ? (
@@ -93,7 +78,7 @@ export default function HomePage() {
             {activeCategories.length > 0 && (
               <section>
                 <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                  <Clock className="h-6 w-6 mr-2 text-blue-600" />
+                  <Clock className="h-6 w-6 mr-2 text-red-700" />
                   進行中的比賽
                 </h2>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

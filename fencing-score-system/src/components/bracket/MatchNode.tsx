@@ -141,7 +141,7 @@ export function MatchNode({ match, isAdmin = false, onUpdate }: MatchNodeProps) 
           "w-48 border rounded-lg overflow-hidden shadow-sm",
           match.isBye && "border-gray-200 bg-gray-50",
           !match.isBye && "border-gray-300 bg-white",
-          canEdit && "cursor-pointer hover:border-blue-400 hover:shadow-md transition-all"
+          canEdit && "cursor-pointer hover:border-red-400 hover:shadow-md transition-all"
         )}
         onClick={handleClick}
       >

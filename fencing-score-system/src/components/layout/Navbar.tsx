@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Swords, User, LogOut } from 'lucide-react'
+import { User, LogOut } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 export function Navbar() {
@@ -49,7 +49,7 @@ export function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
-              <Swords className="h-8 w-8 text-blue-600" />
+              <img src="/logo.png" alt="Logo" className="h-8 w-8 object-contain" />
               <span className="text-xl font-bold text-gray-900">
                 台大擊劍隊計分系統
               </span>
@@ -64,7 +64,7 @@ export function Navbar() {
                   className={cn(
                     "px-3 py-2 rounded-md text-sm font-medium transition-colors",
                     pathname.startsWith('/admin')
-                      ? "bg-blue-100 text-blue-700"
+                      ? "bg-red-100 text-red-800"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   )}
                 >
@@ -85,7 +85,7 @@ export function Navbar() {
             ) : (
               <Link
                 href="/admin/login"
-                className="px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 rounded-md text-sm font-medium bg-red-700 text-white hover:bg-red-800 transition-colors"
               >
                 管理員登入
               </Link>

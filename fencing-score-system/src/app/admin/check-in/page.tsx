@@ -278,7 +278,7 @@ export default function CheckInPage() {
           <CardContent>
             {loading ? (
               <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-700 mx-auto"></div>
               </div>
             ) : categories.length === 0 ? (
               <p className="text-gray-500 text-center py-4">尚無組別</p>
@@ -289,7 +289,7 @@ export default function CheckInPage() {
                     key={category.id}
                     className={`p-3 rounded-lg cursor-pointer transition-colors ${
                       selectedCategory === category.id
-                        ? 'bg-blue-50 border border-blue-200'
+                        ? 'bg-red-50 border border-red-200'
                         : 'bg-gray-50 hover:bg-gray-100'
                     }`}
                     onClick={() => setSelectedCategory(category.id)}

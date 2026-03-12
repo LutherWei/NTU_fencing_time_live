@@ -3,8 +3,8 @@ import prisma from '@/lib/prisma'
 import { createToken, setAuthCookie } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
-const DEFAULT_USERNAME = process.env.ADMIN_USERNAME || 'admin'
-const DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
+const DEFAULT_USERNAME = process.env.ADMIN_USERNAME
+const DEFAULT_PASSWORD = process.env.ADMIN_PASSWORD
 
 export async function POST(request: Request) {
   try {

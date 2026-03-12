@@ -54,6 +54,7 @@ model Fencer {
   seedRank    Int?     // 種子排名（分組賽後）
   finalRank   Int?     // 最終排名
   
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
