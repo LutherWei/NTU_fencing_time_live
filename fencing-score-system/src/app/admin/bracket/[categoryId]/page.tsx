@@ -181,8 +181,7 @@ export default function BracketPage({ params }: PageProps) {
                 <tr className="border-b border-gray-200">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">名次</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">種子</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">勝率</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">初賽勝率</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">淨得失分</th>
                 </tr>
               </thead>
@@ -212,9 +211,6 @@ export default function BracketPage({ params }: PageProps) {
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">
                         {fencer.name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-600">
-                        {fencer.seedRank || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-center">
                         {formatWinRate(fencer.winRate)}

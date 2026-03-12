@@ -90,8 +90,6 @@ export default function ResultsPage({ params }: PageProps) {
 
   useEffect(() => {
     fetchCategory()
-    const interval = setInterval(fetchCategory, 10000)
-    return () => clearInterval(interval)
   }, [categoryId])
 
   const fetchCategory = async () => {
@@ -272,60 +270,99 @@ export default function ResultsPage({ params }: PageProps) {
 
         {/* 排名 */}
         {activeTab === 'rankings' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>總排名</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">名次</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">勝率</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">得分</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">失分</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">淨得失分</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {rankings.map((fencer, idx) => (
-                      <tr key={fencer.id} className={idx < 3 ? 'bg-yellow-50' : ''}>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`font-bold ${
-                            idx === 0 ? 'text-yellow-600' :
-                            idx === 1 ? 'text-gray-500' :
-                            idx === 2 ? 'text-amber-700' : 'text-gray-900'
-                          }`}>
-                            {fencer.finalRank || fencer.seedRank || idx + 1}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                          {fencer.name}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center">
-                          {formatWinRate(fencer.winRate)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center">
-                          {fencer.touchesScored}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center">
-                          {fencer.touchesReceived}
-                        </td>
-                        <td className={`px-4 py-3 text-sm text-center font-medium ${
-                          fencer.indicator > 0 ? 'text-green-600' :
-                          fencer.indicator < 0 ? 'text-red-600' : ''
-                        }`}>
-                          {formatIndicator(fencer.indicator)}
-                        </td>
+          <div className="space-y-6">
+            {/* 總排名 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>總排名</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">名次</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {rankings.map((fencer, idx) => (
+                        <tr key={fencer.id} className={idx < 3 ? 'bg-yellow-50' : ''}>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`font-bold ${
+                              idx === 0 ? 'text-yellow-600' :
+                              idx === 1 ? 'text-gray-500' :
+                              idx === 2 ? 'text-amber-700' : 'text-gray-900'
+                            }`}>
+                              {fencer.finalRank || fencer.seedRank || idx + 1}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                            {fencer.name}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 初賽排名（分組賽成績） */}
+            <Card>
+              <CardHeader>
+                <CardTitle>初賽排名</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">排名</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">勝率</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">得分</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">失分</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">淨得失分</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {[...category.fencers]
+                        .sort((a, b) => {
+                          if (a.seedRank && b.seedRank) return a.seedRank - b.seedRank
+                          return 0
+                        })
+                        .map((fencer, idx) => (
+                          <tr key={fencer.id}>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              {fencer.seedRank || idx + 1}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              {fencer.name}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center">
+                              {formatWinRate(fencer.winRate)}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center">
+                              {fencer.touchesScored}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center">
+                              {fencer.touchesReceived}
+                            </td>
+                            <td className={`px-4 py-3 text-sm text-center font-medium ${
+                              fencer.indicator > 0 ? 'text-green-600' :
+                              fencer.indicator < 0 ? 'text-red-600' : ''
+                            }`}>
+                              {formatIndicator(fencer.indicator)}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </main>
     </div>

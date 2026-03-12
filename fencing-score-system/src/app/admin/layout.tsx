@@ -99,31 +99,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </Link>
               )
             })}
-
-            <div className="pt-4 mt-4 border-t border-gray-200">
-              <p className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                比賽管理
-              </p>
-              <Link
-                href="/admin/check-in"
-                className={cn(
-                  "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  pathname.includes('/poules') || pathname.includes('/bracket')
-                    ? "text-gray-700"
-                    : "text-gray-500"
-                )}
-              >
-                <Grid3X3 className="h-5 w-5 mr-3" />
-                分組賽管理
-              </Link>
-              <Link
-                href="/admin/check-in"
-                className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-500 transition-colors"
-              >
-                <Trophy className="h-5 w-5 mr-3" />
-                淘汰賽管理
-              </Link>
-            </div>
           </nav>
         </aside>
 

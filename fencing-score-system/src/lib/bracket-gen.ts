@@ -142,12 +142,16 @@ export function generateBracket(
       const prevMatch1 = matches[prevRoundStart]
       const prevMatch2 = matches[prevRoundStart + 1]
       
+      // 檢查前一輪比賽是否已完成，如果是就直接晉級
+      const fencer1Id = prevMatch1?.completed && prevMatch1.winnerId ? prevMatch1.winnerId : null
+      const fencer2Id = prevMatch2?.completed && prevMatch2.winnerId ? prevMatch2.winnerId : null
+      
       matches.push({
         id: `match-${matchId++}`,
         round: 1,
         position: 0,
-        fencer1Id: null,
-        fencer2Id: null,
+        fencer1Id,
+        fencer2Id,
         fencer1Seed: null,
         fencer2Seed: null,
         score1: null,
@@ -167,12 +171,19 @@ export function generateBracket(
       const prevMatch1Idx = prevRoundStart + pos * 2
       const prevMatch2Idx = prevRoundStart + pos * 2 + 1
       
+      const prevMatch1 = matches[prevMatch1Idx]
+      const prevMatch2 = matches[prevMatch2Idx]
+      
+      // 檢查前一輪比賽是否已完成（Bye），如果是就直接晉級
+      const fencer1Id = prevMatch1?.completed && prevMatch1.winnerId ? prevMatch1.winnerId : null
+      const fencer2Id = prevMatch2?.completed && prevMatch2.winnerId ? prevMatch2.winnerId : null
+      
       matches.push({
         id: `match-${matchId++}`,
         round: currentRound,
         position: pos,
-        fencer1Id: null,
-        fencer2Id: null,
+        fencer1Id,
+        fencer2Id,
         fencer1Seed: null,
         fencer2Seed: null,
         score1: null,
@@ -181,8 +192,8 @@ export function generateBracket(
         completed: false,
         isBye: false,
         isThirdPlace: false,
-        prevMatch1Id: matches[prevMatch1Idx]?.id || null,
-        prevMatch2Id: matches[prevMatch2Idx]?.id || null
+        prevMatch1Id: prevMatch1?.id || null,
+        prevMatch2Id: prevMatch2?.id || null
       })
     }
     
@@ -284,36 +295,44 @@ export function calculateFinalRankings(
   
   // 其餘選手根據被淘汰的輪次決定排名
   // 在某輪被淘汰的選手，排名為 該輪開始位置+1 到 下一輪開始位置
+  // ... 前面的決賽與三四名邏輯保持不變 ...
+
   const rounds = [...new Set(bracketMatches.map(m => m.round))].sort((a, b) => a - b)
   
   for (const round of rounds) {
     if (round === 1) continue // 決賽單獨處理
     
     const roundMatches = bracketMatches.filter(m => m.round === round && !m.isThirdPlace)
-    const eliminatedFencers: string[] = []
+    
+    // 修正：除了收集 ID，還要收集他們的種子序，以便後續排序
+    const eliminatedFencersWithSeed: { id: string, seed: number }[] = []
     
     for (const match of roundMatches) {
       if (match.completed && match.winnerId) {
-        const loserId = match.fencer1Id === match.winnerId ? match.fencer2Id : match.fencer1Id
+        // 判斷輸家是誰
+        const isFencer1Loser = match.fencer1Id !== match.winnerId
+        const loserId = isFencer1Loser ? match.fencer1Id : match.fencer2Id
+        const loserSeed = isFencer1Loser ? match.fencer1Seed : match.fencer2Seed
+        
         if (loserId && !rankings.has(loserId)) {
-          eliminatedFencers.push(loserId)
+          eliminatedFencersWithSeed.push({
+            id: loserId,
+            seed: loserSeed || 999 // 如果沒有種子序給個極大值防呆
+          })
         }
       }
     }
     
-    // 該輪被淘汰的選手排名區間
-    const existingRanks = hasThirdPlace ? 4 : 2
-    let baseRank: number
+    // 修正擊劍邏輯：同一輪被淘汰者，依照種子序決定最終名次 (種子數字越小，名次越前面)
+    eliminatedFencersWithSeed.sort((a, b) => a.seed - b.seed)
     
-    if (round === 2) {
-      baseRank = hasThirdPlace ? 5 : 3 // 四強被淘汰，排3-4或5-8
-    } else {
-      baseRank = round + 1 // 八強被淘汰排5-8，十六強被淘汰排9-16
-    }
+    // 修正數學算式：round 代表比賽場數，所以 baseRank 就是 round + 1
+    const baseRank = round + 1
     
-    eliminatedFencers.forEach((fid, idx) => {
-      if (!rankings.has(fid)) {
-        rankings.set(fid, baseRank)
+    eliminatedFencersWithSeed.forEach((fencer, idx) => {
+      if (!rankings.has(fencer.id)) {
+        // 依序給予名次：例如 baseRank=5，四個人分別拿到 5, 6, 7, 8
+        rankings.set(fencer.id, baseRank + idx)
       }
     })
   }

@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { 
   Users, 
   Trophy, 
   Grid3X3, 
   Clock,
   ArrowRight,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react'
 
 interface Category {
@@ -32,6 +34,9 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 export default function DashboardPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetchCategories()
@@ -48,6 +53,36 @@ export default function DashboardPage() {
       console.error('Fetch categories error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteClick = (category: Category) => {
+    setCategoryToDelete(category)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!categoryToDelete) return
+
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/categories/${categoryToDelete.id}`, {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      
+      if (data.success) {
+        await fetchCategories()
+        setDeleteModalOpen(false)
+        setCategoryToDelete(null)
+      } else {
+        alert(`刪除失敗: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Delete category error:', error)
+      alert('刪除失敗，請稍後再試')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -151,7 +186,18 @@ export default function DashboardPage() {
                       {statusLabels[category.status]?.label}
                     </span>
                   </div>
+                        
                   <div className="flex items-center space-x-2">
+                    {category.status === 'finished' && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteClick(category)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     {category.status === 'checkin' && (
                       <Link href={`/admin/check-in`}>
                         <Button variant="outline" size="sm">
@@ -185,6 +231,38 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* 刪除確認對話框 */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => !deleting && setDeleteModalOpen(false)}
+        title="刪除比賽"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            確定要刪除「<span className="font-semibold text-gray-900">{categoryToDelete?.name}</span>」嗎？
+          </p>
+          <p className="text-sm text-red-600">
+            此操作將刪除該組別的所有數據，包括 {categoryToDelete?._count.fencers} 位選手的所有比賽記錄，且無法復原。
+          </p>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={deleting}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? '刪除中...' : '確認刪除'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
