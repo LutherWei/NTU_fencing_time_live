@@ -102,7 +102,7 @@ export function generateBracket(
   let matchId = 0
   
   // 生成第一輪比賽
-  const firstRoundSize = bracketSize / 2
+  const firstRoundSize = bracketSize / 2  // 第一輪的比賽場數 = 參賽人數 / 2
   for (let pos = 0; pos < firstRoundSize; pos++) {
     const [seed1, seed2] = firstRoundPairings[pos]
     const fencer1 = seedToFencer.get(seed1)
@@ -112,7 +112,7 @@ export function generateBracket(
     
     matches.push({
       id: `match-${matchId++}`,
-      round: bracketSize,
+      round: firstRoundSize,  // 修正：第一輪的場數（例如 8人→4場，round=4）
       position: pos,
       fencer1Id: fencer1?.fencerId || null,
       fencer2Id: fencer2?.fencerId || null,
@@ -130,9 +130,9 @@ export function generateBracket(
   }
   
   // 生成後續輪次
-  let currentRound = bracketSize / 2
   let prevRoundStart = 0
   let prevRoundSize = firstRoundSize
+  let currentRound = firstRoundSize / 2  // 第二輪開始（第一輪已經生成了）
   
   while (currentRound >= 1) {
     const currentRoundSize = currentRound / 2 || 1
@@ -162,7 +162,8 @@ export function generateBracket(
       break
     }
     
-    for (let pos = 0; pos < currentRoundSize; pos++) {
+    // 生成當前輪的所有比賽（currentRound 場）
+    for (let pos = 0; pos < currentRound; pos++) {
       const prevMatch1Idx = prevRoundStart + pos * 2
       const prevMatch2Idx = prevRoundStart + pos * 2 + 1
       
@@ -186,7 +187,7 @@ export function generateBracket(
     }
     
     prevRoundStart += prevRoundSize
-    prevRoundSize = currentRoundSize
+    prevRoundSize = currentRound
     currentRound = currentRound / 2
   }
   
@@ -307,7 +308,7 @@ export function calculateFinalRankings(
     if (round === 2) {
       baseRank = hasThirdPlace ? 5 : 3 // 四強被淘汰，排3-4或5-8
     } else {
-      baseRank = round / 2 + 1 // 八強被淘汰排5-8，十六強被淘汰排9-16
+      baseRank = round + 1 // 八強被淘汰排5-8，十六強被淘汰排9-16
     }
     
     eliminatedFencers.forEach((fid, idx) => {

@@ -113,10 +113,21 @@ export async function POST(request: Request) {
       })
     }
 
-    // 刪除現有淘汰賽
-    await prisma.bracket.deleteMany({
+    // 刪除現有淘汰賽（會級聯刪除所有比賽）
+    const existingBracket = await prisma.bracket.findUnique({
       where: { categoryId }
     })
+    
+    if (existingBracket) {
+      // 先明確刪除所有比賽
+      await prisma.eliminationMatch.deleteMany({
+        where: { bracketId: existingBracket.id }
+      })
+      // 再刪除 bracket
+      await prisma.bracket.delete({
+        where: { categoryId }
+      })
+    }
 
     // 生成淘汰賽架構
     const bracketSize = calculateBracketSize(qualifiedFencers.length)
@@ -124,6 +135,20 @@ export async function POST(request: Request) {
       qualifiedFencers.map((f, i) => ({ fencerId: f.id, seed: i + 1 })),
       hasThirdPlace ?? false
     )
+
+    // 驗證沒有重複的 (round, position) 組合
+    const positionSet = new Set<string>()
+    for (const match of bracketMatches) {
+      const key = `${match.round}-${match.position}`
+      if (positionSet.has(key)) {
+        console.error('重複的比賽位置:', key, match)
+        return NextResponse.json(
+          { success: false, error: `重複的比賽位置: round ${match.round}, position ${match.position}` },
+          { status: 500 }
+        )
+      }
+      positionSet.add(key)
+    }
 
     // 創建淘汰賽
     const bracket = await prisma.bracket.create({
