@@ -49,16 +49,23 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const loserId = score1 > score2 ? match.fencer2Id : match.fencer1Id
 
     // 檢查是否需要交換排名（低排名打贏高排名）
-    if (match.fencer1 && match.fencer2 && match.fencer1.seedRank && match.fencer2.seedRank) {
+    if (
+      match.fencer1 &&
+      match.fencer2 &&
+      match.fencer1.seedRank !== null &&
+      match.fencer2.seedRank !== null
+    ) {
       const winner = score1 > score2 ? match.fencer1 : match.fencer2
       const loser = score1 > score2 ? match.fencer2 : match.fencer1
+      const winnerSeedRank = winner.seedRank!
+      const loserSeedRank = loser.seedRank!
       
       // 如果低排名（數字大）打贏高排名（數字小），交換排名
-      if (winner.seedRank > loser.seedRank) {
-        const tempRank = winner.seedRank
+      if (winnerSeedRank > loserSeedRank) {
+        const tempRank = winnerSeedRank
         await prisma.fencer.update({
           where: { id: winner.id },
-          data: { seedRank: loser.seedRank }
+          data: { seedRank: loserSeedRank }
         })
         await prisma.fencer.update({
           where: { id: loser.id },
