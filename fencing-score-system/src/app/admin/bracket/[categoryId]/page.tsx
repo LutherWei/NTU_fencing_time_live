@@ -205,7 +205,7 @@ export default function BracketPage({ params }: PageProps) {
                           displayRank === 3 ? 'text-amber-700' : 'text-gray-900'
                         }`}>
                           {displayRank}
-                          {fencer.finalRank && (
+                          {(fencer.finalRank || idx >= qualifiedCount) && (
                             <span className="ml-1 text-xs text-green-600">
                               (最終)
                             </span>

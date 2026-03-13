@@ -306,6 +306,11 @@ export default function ResultsPage({ params }: PageProps) {
                             idx === 2 ? 'text-amber-700' : 'text-gray-900'
                           }`}>
                             {fencer.finalRank || fencer.seedRank || idx + 1}
+                           {(fencer.finalRank || idx >= qualifiedCount) && (
+                            <span className="ml-1 text-xs text-green-600">
+                              (最終)
+                            </span>
+                          )}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">

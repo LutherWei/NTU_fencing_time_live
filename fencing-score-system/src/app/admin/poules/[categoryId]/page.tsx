@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { PouleMatrix } from '@/components/poules/PouleMatrix'
-import { ArrowLeft, Trophy, Play, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Trophy, Play, RotateCcw, UserPlus } from 'lucide-react'
 
 interface Fencer {
   id: string
@@ -57,6 +57,8 @@ export default function PoulesPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [isEliminationOpen, setIsEliminationOpen] = useState(false)
   const [isResetOpen, setIsResetOpen] = useState(false)
+  const [isAddFencerOpen, setIsAddFencerOpen] = useState(false)
+  const [newFencerName, setNewFencerName] = useState('')
   const [eliminationRate, setEliminationRate] = useState(25)
   const [hasThirdPlace, setHasThirdPlace] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -85,6 +87,49 @@ export default function PoulesPage({ params }: PageProps) {
     const completedMatches = p.matches.filter(m => m.completed).length
     return completedMatches >= totalMatches
   }) ?? false
+
+
+
+  const handleAddFencer = async () => {
+    if (!newFencerName.trim()) return
+    setIsSubmitting(true)
+    try {
+      const res = await fetch(`/api/poules/add-fencer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryId, name: newFencerName })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setIsAddFencerOpen(false)
+        setNewFencerName('')
+        fetchCategory()
+      } else {
+        alert(data.error || '新增失敗')
+      }
+    } catch (e) {
+      alert('新增失敗')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleFencerDelete = async (fencerId: string, fencerName: string) => {
+    if (!confirm(`確定要將選手 ${fencerName} 移出比賽？此操作不可復原，且會移除所有其相關比分。`)) return
+    try {
+      const res = await fetch(`/api/fencers/${fencerId}`, {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      if (data.success) {
+        fetchCategory()
+      } else {
+        alert(data.error || '棄賽失敗')
+      }
+    } catch (e) {
+      alert('棄賽失敗')
+    }
+  }
 
   const handleStartElimination = async () => {
     if (!category) return
@@ -166,7 +211,7 @@ export default function PoulesPage({ params }: PageProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link href="/admin/dashboard">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="text-red-700 hover:text-red-800 hover:bg-red-50">
               <ArrowLeft className="h-4 w-4 mr-1" />
               返回
             </Button>
@@ -179,13 +224,24 @@ export default function PoulesPage({ params }: PageProps) {
         
         <div className="flex space-x-2">
           {category.status === 'poule' && (
-            <Button
-              variant="outline"
-              onClick={() => setIsResetOpen(true)}
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              重新分組
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setIsAddFencerOpen(true)}
+                className="text-red-700 border-red-200 hover:bg-red-50"
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                新增選手
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsResetOpen(true)}
+                className="text-red-700 border-red-200 hover:bg-red-50"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                重新分組
+              </Button>
+            </>
           )}
           
           {allPoulesCompleted && category.status === 'poule' && (
@@ -227,6 +283,7 @@ export default function PoulesPage({ params }: PageProps) {
                   matches={poule.matches}
                   isAdmin={true}
                   onScoreUpdate={fetchCategory}
+                  onFencerDelete={handleFencerDelete}
                 />
               </CardContent>
             </Card>
@@ -315,6 +372,40 @@ export default function PoulesPage({ params }: PageProps) {
               className="bg-red-600 hover:bg-red-700"
             >
               {isSubmitting ? '處理中...' : '確定重新分組'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 新增選手 Modal */}
+      <Modal
+        isOpen={isAddFencerOpen}
+        onClose={() => setIsAddFencerOpen(false)}
+        title="新增選手"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              選手姓名
+            </label>
+            <Input
+              type="text"
+              value={newFencerName}
+              onChange={(e) => setNewFencerName(e.target.value)}
+              placeholder="輸入選手名字"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setIsAddFencerOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleAddFencer}
+              disabled={isSubmitting || !newFencerName.trim()}
+            >
+              {isSubmitting ? '處理中...' : '確定新增'}
             </Button>
           </div>
         </div>

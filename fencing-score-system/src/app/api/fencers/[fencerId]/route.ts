@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { calculatePouleStats } from '@/lib/fencing-math'
 
 interface RouteParams {
   params: Promise<{ fencerId: string }>
@@ -84,9 +85,80 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     const { fencerId } = await params
 
+    const fencerToDelete = await prisma.fencer.findUnique({
+      where: { id: fencerId }
+    })
+
+    if (!fencerToDelete) {
+      return NextResponse.json({ success: false, error: '找不到該選手' }, { status: 404 })
+    }
+
+    // 防呆：如果是在小組內，小組人數不得少於或剛好等於四個（被刪除後會少於四個）
+    if (fencerToDelete.pouleId) {
+      const pouleCheck = await prisma.poule.findUnique({
+        where: { id: fencerToDelete.pouleId },
+        include: { fencers: true }
+      })
+      if (pouleCheck && pouleCheck.fencers.length <= 4) {
+        return NextResponse.json({ success: false, error: '刪除後小組人數少於四人，無法刪除' }, { status: 400 })
+      }
+    }
+
+    // 刪除相關的 PouleMatch
+    await prisma.pouleMatch.deleteMany({
+      where: {
+        OR: [
+          { fencer1Id: fencerId },
+          { fencer2Id: fencerId }
+        ]
+      }
+    })
+
     await prisma.fencer.delete({
       where: { id: fencerId }
     })
+
+    // 如果該選手已經在某個小組，重新計算小組內的統計
+    if (fencerToDelete.pouleId) {
+      const poule = await prisma.poule.findUnique({
+        where: { id: fencerToDelete.pouleId },
+        include: {
+          fencers: true,
+          matches: {
+            where: { completed: true }
+          }
+        }
+      })
+
+      if (poule) {
+        const remainingFencerIds = poule.fencers.map(f => f.id)
+        const matchResults = poule.matches.map(m => ({
+          fencer1Id: m.fencer1Id,
+          fencer2Id: m.fencer2Id,
+          score1: m.score1!,
+          score2: m.score2!
+        }))
+
+        const stats = calculatePouleStats(remainingFencerIds, matchResults)
+
+        for (const f of poule.fencers) {
+          const stat = stats.get(f.id)
+          if (stat) {
+            await prisma.fencer.update({
+              where: { id: f.id },
+              data: {
+                victories: stat.victories,
+                defeats: stat.defeats,
+                touchesScored: stat.touchesScored,
+                touchesReceived: stat.touchesReceived,
+                indicator: stat.indicator,
+                winRate: stat.winRate
+              }
+            })
+          }
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true
