@@ -20,6 +20,7 @@ interface Fencer {
   winRate: number
   seedRank: number | null
   finalRank: number | null
+  pouleRank: number | null
 }
 
 interface PouleMatch {

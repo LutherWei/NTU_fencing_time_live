@@ -105,11 +105,14 @@ export async function POST(request: Request) {
     )
     const qualifiedFencers = rankedFencers.slice(0, qualifiedCount)
 
-    // 更新選手種子排名
+    // 更新選手種子排名與初賽排名
     for (let i = 0; i < rankedFencers.length; i++) {
       await prisma.fencer.update({
         where: { id: rankedFencers[i].id },
-        data: { seedRank: i + 1 }
+        data: { 
+          seedRank: i + 1,
+          pouleRank: i + 1 
+        }
       })
     }
 

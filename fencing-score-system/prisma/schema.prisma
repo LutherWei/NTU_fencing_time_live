@@ -52,6 +52,7 @@ model Fencer {
   
   // 最終排名
   seedRank    Int?     // 種子排名（分組賽後）
+  pouleRank   Int?     // 初賽排名（分組賽剛結束的絕對排名，永不因為淘汰賽變動）
   finalRank   Int?     // 最終排名
   
   
