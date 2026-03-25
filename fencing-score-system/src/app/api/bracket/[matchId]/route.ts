@@ -1,3 +1,5 @@
+// 檔案位置：src/app/api/matches/[matchId]/route.ts
+
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
@@ -9,44 +11,33 @@ interface RouteParams {
 // 更新淘汰賽比賽分數
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
+    // 驗證登入狀態
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: '請先登入' },
-        { status: 401 }
-      )
+      return NextResponse.json({ success: false, error: '請先登入' }, { status: 401 })
     }
 
     const { matchId } = await params
     const { score1, score2 } = await request.json()
 
     if (typeof score1 !== 'number' || typeof score2 !== 'number') {
-      return NextResponse.json(
-        { success: false, error: '請輸入有效分數' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: '請輸入有效分數' }, { status: 400 })
     }
 
     // 獲取比賽資訊
     const match = await prisma.eliminationMatch.findUnique({
       where: { id: matchId },
-      include: {
-        fencer1: true,
-        fencer2: true,
-        bracket: true
-      }
+      include: { fencer1: true, fencer2: true, bracket: true }
     })
 
     if (!match) {
-      return NextResponse.json(
-        { success: false, error: '找不到該比賽' },
-        { status: 404 }
-      )
+      return NextResponse.json({ success: false, error: '找不到該比賽' }, { status: 404 })
     }
 
-    // 確定贏家
-    const winnerId = score1 > score2 ? match.fencer1Id : match.fencer2Id
-    const loserId = score1 > score2 ? match.fencer2Id : match.fencer1Id
+    // 確定贏家與輸家
+    const isFencer1Winner = score1 > score2
+    const winnerId = isFencer1Winner ? match.fencer1Id : match.fencer2Id
+    const loserId = isFencer1Winner ? match.fencer2Id : match.fencer1Id
 
     // 檢查是否需要交換排名（低排名打贏高排名）
     if (match.fencer1 && match.fencer2 && match.fencer1.seedRank && match.fencer2.seedRank) {
@@ -67,110 +58,72 @@ export async function PUT(request: Request, { params }: RouteParams) {
       }
     }
 
-    // 更新比賽
+    // 3. 更新當前比賽狀態
     const updatedMatch = await prisma.eliminationMatch.update({
       where: { id: matchId },
-      data: {
-        score1,
-        score2,
-        winnerId,
-        completed: true
-      }
+      data: { score1, score2, winnerId, completed: true }
     })
 
-    // 找到下一場比賽（由這場比賽的贏家參加）
-    // 這需要根據比賽的結構找到對應的下一輪比賽
+    // 4. 處理下一輪晉級推演
     const nextRound = match.round / 2
     if (nextRound >= 1) {
-      // 找出該比賽在下一輪對應的位置
       const nextPosition = Math.floor(match.position / 2)
       const isFirstFencer = match.position % 2 === 0
 
+      // 贏家晉級
       const nextMatch = await prisma.eliminationMatch.findFirst({
-        where: {
-          bracketId: match.bracketId,
-          round: nextRound,
-          position: nextPosition,
-          isThirdPlace: false
-        }
+        where: { bracketId: match.bracketId, round: nextRound, position: nextPosition, isThirdPlace: false }
       })
 
       if (nextMatch && winnerId) {
-        // 將贏家放入下一場比賽
         await prisma.eliminationMatch.update({
           where: { id: nextMatch.id },
-          data: isFirstFencer
-            ? { fencer1Id: winnerId }
-            : { fencer2Id: winnerId }
+          data: isFirstFencer ? { fencer1Id: winnerId } : { fencer2Id: winnerId }
         })
       }
 
-      // 如果是四強賽，且有三四名決定戰，將敗者放入三四名決定戰
+      // 輸家打三四名戰
       if (match.round === 2 && match.bracket.hasThirdPlace && loserId) {
         const thirdPlaceMatch = await prisma.eliminationMatch.findFirst({
-          where: {
-            bracketId: match.bracketId,
-            isThirdPlace: true
-          }
+          where: { bracketId: match.bracketId, isThirdPlace: true }
         })
 
         if (thirdPlaceMatch) {
           const isFirst = match.position === 0
           await prisma.eliminationMatch.update({
             where: { id: thirdPlaceMatch.id },
-            data: isFirst
-              ? { fencer1Id: loserId }
-              : { fencer2Id: loserId }
+            data: isFirst ? { fencer1Id: loserId } : { fencer2Id: loserId }
           })
         }
       }
     }
 
-    // 如果是決賽，更新選手最終排名
+    // 5. 計算並寫入 Final Rank (最終名次)
     if (match.round === 1 && !match.isThirdPlace) {
-      await prisma.fencer.update({
-        where: { id: winnerId! },
-        data: { finalRank: 1 }
-      })
-
-      if (loserId) {
+      await prisma.fencer.update({ where: { id: winnerId! }, data: { finalRank: 1 } })
+      if (loserId) await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 2 } })
+      await prisma.category.update({ where: { id: match.bracket.categoryId }, data: { status: 'finished' } })
+      
+    } else if (match.isThirdPlace) {
+      await prisma.fencer.update({ where: { id: winnerId! }, data: { finalRank: 3 } })
+      if (loserId) await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 4 } })
+      
+    } else {
+      // 一般淘汰賽敗者名次：max(贏家的原始種子序, 輸家的原始種子序)
+      const isPermanentlyEliminated = !(match.round === 2 && match.bracket.hasThirdPlace)
+      if (isPermanentlyEliminated && loserId && originalWinnerSeed && originalLoserSeed) {
+        const calculatedFinalRank = Math.max(originalWinnerSeed, originalLoserSeed)
         await prisma.fencer.update({
           where: { id: loserId },
-          data: { finalRank: 2 }
-        })
-      }
-
-      // 更新組別狀態為已完成
-      await prisma.category.update({
-        where: { id: match.bracket.categoryId },
-        data: { status: 'finished' }
-      })
-    }
-
-    // 如果是三四名決定戰
-    if (match.isThirdPlace) {
-      await prisma.fencer.update({
-        where: { id: winnerId! },
-        data: { finalRank: 3 }
-      })
-
-      if (loserId) {
-        await prisma.fencer.update({
-          where: { id: loserId },
-          data: { finalRank: 4 }
+          data: { finalRank: calculatedFinalRank }
         })
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      data: updatedMatch
-    })
+    return NextResponse.json({ success: true, data: updatedMatch })
+
   } catch (error) {
     console.error('Update elimination match error:', error)
-    return NextResponse.json(
-      { success: false, error: '更新比賽失敗' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: '更新比賽失敗' }, { status: 500 })
   }
 }

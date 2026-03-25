@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     // 計算晉級人數
     const qualifiedCount = calculateQualifiedCount(
       fencers.length,
-      eliminationRate ?? 0.25
+      eliminationRate ?? 0
     )
     const qualifiedFencers = rankedFencers.slice(0, qualifiedCount)
 
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     const bracket = await prisma.bracket.create({
       data: {
         categoryId,
-        eliminationRate: eliminationRate ?? 0.25,
+        eliminationRate: eliminationRate ?? 0,
         hasThirdPlace: hasThirdPlace ?? false,
         totalRounds: Math.log2(bracketSize)
       }

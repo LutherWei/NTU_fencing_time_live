@@ -5,7 +5,7 @@ import { Navbar } from '@/components/layout/Navbar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { PouleMatrix } from '@/components/poules/PouleMatrix'
 import { BracketTree } from '@/components/bracket/BracketTree'
-import { formatIndicator, formatWinRate } from '@/lib/fencing-math'
+import { formatIndicator, formatWinRate, calculateQualifiedCount } from '@/lib/fencing-math'
 import { ArrowLeft, Trophy, Users, Award } from 'lucide-react'
 import Link from 'next/link'
 
@@ -60,6 +60,7 @@ interface Bracket {
   id: string
   matches: EliminationMatch[]
   hasThirdPlace: boolean
+  eliminationRate: number
 }
 
 interface Category {
@@ -159,6 +160,10 @@ export default function ResultsPage({ params }: PageProps) {
   }
 
   const rankings = getFinalRankings()
+  
+  // 計算淘汰線
+  const eliminationRate = category.bracket?.eliminationRate ?? 0
+  const qualifiedCount = calculateQualifiedCount(category.fencers.length, eliminationRate)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -289,7 +294,11 @@ export default function ResultsPage({ params }: PageProps) {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {rankings.map((fencer, idx) => (
-                      <tr key={fencer.id} className={idx < 3 ? 'bg-yellow-50' : ''}>
+                      <tr key={fencer.id} className={
+                        idx < 3 ? 'bg-yellow-50' : 
+                        idx >= qualifiedCount ? 'bg-red-100' : 
+                        ''
+                      }>
                         <td className="px-4 py-3 text-sm">
                           <span className={`font-bold ${
                             idx === 0 ? 'text-yellow-600' :
@@ -297,6 +306,11 @@ export default function ResultsPage({ params }: PageProps) {
                             idx === 2 ? 'text-amber-700' : 'text-gray-900'
                           }`}>
                             {fencer.finalRank || fencer.seedRank || idx + 1}
+                           {(fencer.finalRank || idx >= qualifiedCount) && (
+                            <span className="ml-1 text-xs text-green-600">
+                              (最終)
+                            </span>
+                          )}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">
