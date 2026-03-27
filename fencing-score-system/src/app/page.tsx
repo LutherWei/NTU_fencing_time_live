@@ -149,7 +149,7 @@ export default function HomePage() {
       <footer className="bg-white border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-gray-500 text-sm">
-            © {new Date().getFullYear()} 台大擊劍隊計分系統. All rights reserved.
+            © {new Date().getFullYear()} 台大擊劍隊計分系統. All rights reserved. Contributor: Luther Wei (weiluther@gmail.com)
           </p>
         </div>
       </footer>

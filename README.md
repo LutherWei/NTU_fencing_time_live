@@ -55,7 +55,7 @@
 ## 🛠 技術架構
 
 ```
-技術棧：
+技術：
 - Next.js 16 (App Router)
 - React 19
 - TypeScript
@@ -76,6 +76,7 @@
 
 ```bash
 # 進入專案目錄
+git clone git@github.com:LutherWei/NTU_fencing_time_live.git
 cd fencing-score-system
 
 # 安裝相依套件
@@ -93,13 +94,13 @@ npx prisma db push
 npx prisma db seed
 ```
 
-### 3. 啟動開發伺服器
+### 3. 啟動測試伺服器
 
 ```bash
 npm run dev
 ```
+開啟瀏覽器前往 [http://localhost:3000]
 
-開啟瀏覽器前往 [https://rolanda-indistinguishable-agonisedly.ngrok-free.dev/]
 
 ### 4. 建置正式環境
 
@@ -113,6 +114,7 @@ For ngrok
 tmux
 ./ngrok http --domain=rolanda-indistinguishable-agonisedly.ngrok-free.dev 3001
 ```
+開啟瀏覽器前往 [https://rolanda-indistinguishable-agonisedly.ngrok-free.dev/]
 ---
 
 ## 📖 使用指南
@@ -182,7 +184,7 @@ tmux
      - 如果比分為 5:4，勝者格填入 `V`，敗者格填入 `4`
    - 顏色標示：
      - ✅ 綠色 = 勝利
-     - ❌ 紅色 = 失敗
+     - ❌ 紅色 = 輸家
 
 4. **自動計算統計**
    系統會即時計算：
@@ -210,11 +212,12 @@ tmux
 3. **樹狀圖生成**
    - 確認參數後系統自動生成淘汰賽樹狀圖
    - 採用單淘汰制
-   - 若晉級人數不是 2 的次方，會安排輪空 (Bye)
+   - 若晉級人數不是$2^n$，會安排輪空 (Bye)
    - 對戰組合採「最大亂度」原則：
      - 第 1 名 vs 最後一名
      - 第 2 名 vs 倒數第二名
      - 依此類推
+     - 排列方式比照FIE系統
 
 4. **登記淘汰賽分數**
    - 點擊樹狀圖上的任一場比賽
@@ -290,37 +293,11 @@ tmux
 - `GET /api/bracket?categoryId=[id]` - 取得淘汰賽樹狀圖
 - `POST /api/bracket` - 建立淘汰賽
 - `PATCH /api/bracket/[matchId]` - 更新淘汰賽比賽分數
-
----
-
-## ❓ 常見問題
-
-### Q1: 忘記管理員密碼怎麼辦？
-A: 請聯繫系統管理員重設密碼，或透過資料庫直接修改。
-
-### Q2: 可以同時進行多個組別嗎？
-A: 可以！每個組別都是獨立管理，不會互相影響。
-
-### Q3: 分組預賽一組可以有幾人？
-A: 最少 4 人，最多 8 人。
-
-### Q4: 淘汰賽的「最大亂度」是什麼意思？
-A: 指排名第 1 對上最後一名、第 2 對上倒數第二，以此類推，確保強者與弱者對決，增加比賽公平性。
-
-### Q5: 如果兩位選手各項數據都相同怎麼辦？
-A: 若涉及晉級資格時，兩人一律晉級；若不涉及晉級，則隨機決定排名。
-
-### Q6: 可以取消或重設比賽嗎？
-A: 管理員可以在後台重新編輯分數或刪除整個組別重新開始。
-
-### Q7: 手機可以使用嗎？
-A: 可以！系統採用響應式設計，支援各種裝置瀏覽。
-
 ---
 
 ## 📞 技術支援
 
-如有任何問題或建議，請聯繫開發團隊或在 GitHub 上提交 Issue。
+如有任何問題或建議，請聯繫 weiluther@gmail.com
 
 ---
 
