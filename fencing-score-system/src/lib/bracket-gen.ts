@@ -53,7 +53,14 @@ export function generateMaximumEntropy(bracketSize: number): [number, number][] 
     // 交錯合併
     const result: number[] = []
     for (let i = 0; i < half; i++) {
-      result.push(upper[i], lower[i])
+      if(half >= 2){
+        if(i % 2 === 0){
+          result.push(upper[i], lower[i])
+        } else {
+          result.push(lower[i], upper[i])
+        }
+      }
+      else result.push(upper[i], lower[i])
     }
     return result
   }
@@ -65,12 +72,7 @@ export function generateMaximumEntropy(bracketSize: number): [number, number][] 
   for (let i = 0; i < orderedSeeds.length; i += 2) {
     const seed1 = orderedSeeds[i]
     const seed2 = orderedSeeds[i + 1]
-    // 確保高種子（數字小的）在前
-    if (seed1 < seed2) {
-      matches.push([seed1, seed2])
-    } else {
-      matches.push([seed2, seed1])
-    }
+    matches.push([seed1, seed2])
   }
   
   return matches
