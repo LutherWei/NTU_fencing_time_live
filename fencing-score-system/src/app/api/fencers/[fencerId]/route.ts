@@ -86,11 +86,22 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const { fencerId } = await params
 
     const fencerToDelete = await prisma.fencer.findUnique({
-      where: { id: fencerId }
+      where: { id: fencerId },
+      include: {
+        category: true
+      }
     })
 
     if (!fencerToDelete) {
       return NextResponse.json({ success: false, error: '找不到該選手' }, { status: 404 })
+    }
+
+    // 若比賽已進入淘汰賽或已結束，鎖定名單不得再刪除選手
+    if (fencerToDelete.category.status === 'elimination' || fencerToDelete.category.status === 'finished') {
+      return NextResponse.json(
+        { success: false, error: '比賽已進入淘汰賽階段或已結束，無法刪除選手' },
+        { status: 400 }
+      )
     }
 
     // 防呆：如果是在小組內，小組人數不得少於或剛好等於四個（被刪除後會少於四個）

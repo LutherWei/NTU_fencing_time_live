@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { PouleMatrix } from '@/components/poules/PouleMatrix'
 import { ArrowLeft, Trophy, Play, RotateCcw, UserPlus } from 'lucide-react'
+import { formatWinRate, formatIndicator, calculateQualifiedCount } from '@/lib/fencing-math'
 
 interface Fencer {
   id: string
@@ -19,6 +20,7 @@ interface Fencer {
   touchesReceived: number
   indicator: number
   winRate: number
+  pouleRank?: number | null
 }
 
 interface PouleMatch {
@@ -59,7 +61,7 @@ export default function PoulesPage({ params }: PageProps) {
   const [isResetOpen, setIsResetOpen] = useState(false)
   const [isAddFencerOpen, setIsAddFencerOpen] = useState(false)
   const [newFencerName, setNewFencerName] = useState('')
-  const [eliminationRate, setEliminationRate] = useState(25)
+  const [eliminationRate, setEliminationRate] = useState(0)
   const [hasThirdPlace, setHasThirdPlace] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -206,6 +208,24 @@ export default function PoulesPage({ params }: PageProps) {
     )
   }
 
+  // 計算初賽排名
+  const getPouleRankings = () => {
+    if (!category) return []
+    
+    return [...category.fencers].sort((a, b) => {
+      // 依據勝率 -> 淨得分 -> 總得分 降序
+      if (a.winRate !== b.winRate) return b.winRate - a.winRate
+      if (a.indicator !== b.indicator) return b.indicator - a.indicator
+      const scoreDiff = b.touchesScored - a.touchesScored
+      if (scoreDiff !== 0) return scoreDiff
+      return a.id.localeCompare(b.id)
+    })
+  }
+
+  const pouleRankings = getPouleRankings()
+  const eliminatedCount = parseInt(eliminationRate.toString()) || 0
+  const qualifiedCount = calculateQualifiedCount(category.fencers.length, eliminatedCount / 100)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -279,7 +299,10 @@ export default function PoulesPage({ params }: PageProps) {
                 <PouleMatrix
                   pouleId={poule.id}
                   pouleName={poule.name}
-                  fencers={poule.fencers}
+                  fencers={poule.fencers.map(f => ({
+                    ...f,
+                    isEliminated: f.pouleRank != null && (f.pouleRank as number) > qualifiedCount
+                  }))}
                   matches={poule.matches}
                   isAdmin={true}
                   onScoreUpdate={fetchCategory}
@@ -288,6 +311,63 @@ export default function PoulesPage({ params }: PageProps) {
               </CardContent>
             </Card>
           ))}
+
+          {category.fencers.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>預覽初賽排名</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">初賽名次</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽勝率</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽得分</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽失分</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽淨得失分</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {pouleRankings.map((fencer, idx) => {
+                        const rank = fencer.pouleRank ?? idx + 1
+                        const isEliminated = rank > qualifiedCount
+                        return (
+                          <tr key={fencer.id} className={isEliminated ? 'bg-red-100' : ''}>
+                            <td className={`px-4 py-3 text-sm font-bold ${isEliminated ? 'text-red-700' : 'text-gray-900'}`}>
+                              {rank}
+                              {isEliminated && <span className="ml-2 text-xs font-normal text-red-600">(淘汰)</span>}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              {fencer.name}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-600">
+                              {formatWinRate(fencer.winRate)}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-600">
+                              {fencer.touchesScored}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-600">
+                              {fencer.touchesReceived}
+                            </td>
+                            <td className={`px-4 py-3 text-sm text-center font-medium ${
+                              fencer.indicator > 0 ? 'text-green-600' :
+                              fencer.indicator < 0 ? 'text-red-600' : 'text-gray-600'
+                            }`}>
+                              {formatIndicator(fencer.indicator)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
         </div>
       )}
 

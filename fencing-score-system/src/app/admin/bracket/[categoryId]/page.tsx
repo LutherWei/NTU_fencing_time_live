@@ -19,6 +19,7 @@ interface Fencer {
   winRate: number
   seedRank: number | null
   finalRank: number | null
+  pouleRank: number | null
 }
 
 interface EliminationMatch {
@@ -29,6 +30,8 @@ interface EliminationMatch {
   fencer2Id: string | null
   fencer1: Fencer | null
   fencer2: Fencer | null
+  fencer1SeedRank: number | null
+  fencer2SeedRank: number | null
   score1: number | null
   score2: number | null
   winnerId: string | null
@@ -124,7 +127,7 @@ export default function BracketPage({ params }: PageProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link href="/admin/dashboard">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="text-red-700 hover:text-red-800 hover:bg-red-50">
               <ArrowLeft className="h-4 w-4 mr-1" />
               返回
             </Button>
@@ -169,6 +172,7 @@ export default function BracketPage({ params }: PageProps) {
       </Card>
 
       {/* 現在排名 */}
+      {category.status === 'finished' &&(
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
@@ -182,9 +186,12 @@ export default function BracketPage({ params }: PageProps) {
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">名次</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">初賽勝率</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">淨得失分</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">選手</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽排名</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽勝率</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽得分</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽失分</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽淨得失分</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -194,7 +201,7 @@ export default function BracketPage({ params }: PageProps) {
                   
                   return (
                     <tr key={fencer.id} className={
-                        idx < 3 ? 'bg-yellow-50' : 
+                        displayRank <= 3 ? 'bg-yellow-50' : 
                         idx >= qualifiedCount ? 'bg-red-100' : 
                         ''
                       }>
@@ -212,18 +219,27 @@ export default function BracketPage({ params }: PageProps) {
                           )}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                        {fencer.name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center">
-                        {formatWinRate(fencer.winRate)}
-                      </td>
-                      <td className={`px-4 py-3 text-sm text-center font-medium ${
-                        fencer.indicator > 0 ? 'text-green-600' :
-                        fencer.indicator < 0 ? 'text-red-600' : ''
-                      }`}>
-                        {formatIndicator(fencer.indicator)}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900">
+                          {fencer.name}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-center text-gray-900">
+                          {fencer.pouleRank ?? '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-center text-gray-600">
+                          {formatWinRate(fencer.winRate)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-center text-gray-600">
+                          {fencer.touchesScored}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-center text-gray-600">
+                          {fencer.touchesReceived}
+                        </td>
+                        <td className={`px-4 py-3 text-sm text-center font-medium ${
+                          fencer.indicator > 0 ? 'text-green-600' :
+                          fencer.indicator < 0 ? 'text-red-600' : 'text-gray-600'
+                        }`}>
+                          {formatIndicator(fencer.indicator)}
+                        </td>
                     </tr>
                   )
                 })}
@@ -231,7 +247,7 @@ export default function BracketPage({ params }: PageProps) {
             </table>
           </div>
         </CardContent>
-      </Card>
+      </Card>)}
     </div>
   )
 }

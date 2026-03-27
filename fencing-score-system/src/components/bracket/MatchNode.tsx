@@ -20,6 +20,8 @@ interface EliminationMatch {
   fencer2Id: string | null
   fencer1: Fencer | null
   fencer2: Fencer | null
+  fencer1SeedRank: number | null
+  fencer2SeedRank: number | null
   score1: number | null
   score2: number | null
   winnerId: string | null
@@ -93,7 +95,8 @@ export function MatchNode({ match, isAdmin = false, onUpdate }: MatchNodeProps) 
     fencer: Fencer | null, 
     fencerId: string | null, 
     score: number | null,
-    isWinner: boolean
+    isWinner: boolean,
+    ranking: number | null
   ) => {
     if (match.isBye && !fencer) {
       return (
@@ -110,11 +113,14 @@ export function MatchNode({ match, isAdmin = false, onUpdate }: MatchNodeProps) 
         !isWinner && match.completed && fencer && "bg-red-50"
       )}>
         <div className="flex items-center space-x-2 flex-1 min-w-0">
-          {fencer?.seedRank && (
+          {(() => {
+            const displaySeed = ranking ?? fencer?.seedRank ?? null
+            if (displaySeed == null) return null
+            return (
             <span className="text-xs text-gray-500 flex-shrink-0">
-              [{fencer.seedRank}]
+              [{displaySeed}]
             </span>
-          )}
+          )})()}
           <span className={cn(
             "font-medium truncate",
             !fencer && "text-gray-400 italic"
@@ -150,13 +156,15 @@ export function MatchNode({ match, isAdmin = false, onUpdate }: MatchNodeProps) 
             match.fencer1,
             match.fencer1Id,
             match.score1,
-            match.winnerId === match.fencer1Id
+            match.winnerId === match.fencer1Id,
+            match.fencer1SeedRank
           )}
           {renderFencerSlot(
             match.fencer2,
             match.fencer2Id,
             match.score2,
-            match.winnerId === match.fencer2Id
+            match.winnerId === match.fencer2Id,
+            match.fencer2SeedRank
           )}
         </div>
       </div>

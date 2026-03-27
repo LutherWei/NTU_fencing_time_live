@@ -18,6 +18,8 @@ interface EliminationMatch {
   fencer2Id: string | null
   fencer1: Fencer | null
   fencer2: Fencer | null
+   fencer1SeedRank: number | null
+   fencer2SeedRank: number | null
   score1: number | null
   score2: number | null
   winnerId: string | null

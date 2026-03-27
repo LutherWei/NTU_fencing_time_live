@@ -27,6 +27,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '無此組別或尚未分組' }, { status: 400 })
     }
 
+    // 分組賽結束後（已進入淘汰賽或比賽已結束）不得再異動小組成員
+    if (category.status === 'elimination' || category.status === 'finished') {
+      return NextResponse.json({ success: false, error: '分組賽階段已結束，無法再新增選手' }, { status: 400 })
+    }
+
     // find poule with min fencers
     let targetPoule = category.poules[0]
     for (const p of category.poules) {

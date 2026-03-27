@@ -236,14 +236,15 @@ export default function DashboardPage() {
                     )}
                     {category.status === 'finished' && (
                       <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDeleteClick(category)}
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleDeleteClick(category)}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
+                        >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
+                    
                     {category.status === 'checkin' && (
                       <Link href={`/admin/check-in`}>
                         <Button variant="outline" size="sm">
@@ -251,22 +252,23 @@ export default function DashboardPage() {
                         </Button>
                       </Link>
                     )}
-                    {category.status === 'poule' && (
+                    {category.status === 'poule'  && (
                       <Link href={`/admin/poules/${category.id}`}>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" style = {{ backgroundColor: '#FEE2E2', color: '#B91C1C' }}>
                           分組賽
                         </Button>
                       </Link>
                     )}
                     {(category.status === 'elimination' || category.status === 'finished') && (
                       <Link href={`/admin/bracket/${category.id}`}>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" style={{ backgroundColor: '#EDE9FE', color: '#5B21B6' }}>
                           淘汰賽
                         </Button>
                       </Link>
                     )}
                     <Link href={`/results/${category.id}`}>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="outline" size="sm">
+                        查看結果
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </Link>

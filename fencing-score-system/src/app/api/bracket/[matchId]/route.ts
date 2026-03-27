@@ -34,20 +34,93 @@ export async function PUT(request: Request, { params }: RouteParams) {
       return NextResponse.json({ success: false, error: '找不到該比賽' }, { status: 404 })
     }
 
+    // 檢查所屬組別目前是否仍在淘汰賽階段
+    const category = await prisma.category.findUnique({
+      where: { id: match.bracket.categoryId },
+      select: { status: true }
+    })
+
+    if (!category) {
+      return NextResponse.json({ success: false, error: '找不到該組別' }, { status: 404 })
+    }
+
+    if (category.status !== 'elimination') {
+      return NextResponse.json(
+        { success: false, error: '淘汰賽階段已結束或尚未開始，無法修改淘汰賽成績' },
+        { status: 400 }
+      )
+    }
+
+    // 若本場已登錄成績，只要下一輪尚未開始仍允許修改；
+    // 一旦下一輪（或三四名戰）有任何比分，就鎖定本場成績不得再改。
+    let nextRoundStarted = false
+
+    const nextRound = match.round / 2
+    if (nextRound >= 1) {
+      const nextPosition = Math.floor(match.position / 2)
+      const nextMatch = await prisma.eliminationMatch.findFirst({
+        where: {
+          bracketId: match.bracketId,
+          round: nextRound,
+          position: nextPosition,
+          isThirdPlace: false
+        },
+        select: {
+          score1: true,
+          score2: true,
+          completed: true
+        }
+      })
+
+      if (nextMatch && (nextMatch.completed || nextMatch.score1 !== null || nextMatch.score2 !== null)) {
+        nextRoundStarted = true
+      }
+    }
+
+    // 若是四強，另外檢查三四名戰是否已經開打
+    let thirdPlaceStarted = false
+    if (match.round === 2 && match.bracket.hasThirdPlace) {
+      const thirdPlaceMatch = await prisma.eliminationMatch.findFirst({
+        where: { bracketId: match.bracketId, isThirdPlace: true },
+        select: {
+          score1: true,
+          score2: true,
+          completed: true
+        }
+      })
+
+      if (thirdPlaceMatch && (thirdPlaceMatch.completed || thirdPlaceMatch.score1 !== null || thirdPlaceMatch.score2 !== null)) {
+        thirdPlaceStarted = true
+      }
+    }
+
+    if (nextRoundStarted || thirdPlaceStarted) {
+      return NextResponse.json(
+        { success: false, error: '下一輪比賽已經開始，無法再修改本場成績' },
+        { status: 400 }
+      )
+    }
+
+    // 先記錄本場比賽開始前，兩位選手當下的 seedRank，作為此 match 的快照
+    const fencer1SeedAtMatch = match.fencer1?.seedRank ?? null
+    const fencer2SeedAtMatch = match.fencer2?.seedRank ?? null
+
     // 確定贏家與輸家
     const isFencer1Winner = score1 > score2
     const winnerId = isFencer1Winner ? match.fencer1Id : match.fencer2Id
     const loserId = isFencer1Winner ? match.fencer2Id : match.fencer1Id
 
     let calculatedLoserSeed: number | null = null
+    let newWinnerSeed: number | null = null
+    let newLoserSeed: number | null = null
 
     // 檢查並更新 seedRank
     if (match.fencer1 && match.fencer2 && match.fencer1.seedRank != null && match.fencer2.seedRank != null) {
       const winnerSeedRank = isFencer1Winner ? match.fencer1.seedRank : match.fencer2.seedRank
       const loserSeedRank = isFencer1Winner ? match.fencer2.seedRank : match.fencer1.seedRank
   
-      const newWinnerSeed = Math.min(winnerSeedRank, loserSeedRank) // 贏家取較好的種子
-      const newLoserSeed = Math.max(winnerSeedRank, loserSeedRank) // 輸家取較差的種子
+      newWinnerSeed = Math.min(winnerSeedRank, loserSeedRank) // 贏家取較好的種子
+      newLoserSeed = Math.max(winnerSeedRank, loserSeedRank) // 輸家取較差的種子
       
       calculatedLoserSeed = newLoserSeed // 紀錄敗者應該拿到的 seedRank
       const winner = isFencer1Winner ? match.fencer1 : match.fencer2
@@ -66,11 +139,18 @@ export async function PUT(request: Request, { params }: RouteParams) {
     // 3. 更新當前比賽狀態
     const updatedMatch = await prisma.eliminationMatch.update({
       where: { id: matchId },
-      data: { score1, score2, winnerId, completed: true }
+      data: {
+        score1,
+        score2,
+        winnerId,
+        completed: true,
+        // 把本場比賽開打當下兩位選手的 seedRank 存成快照
+        fencer1SeedRank: fencer1SeedAtMatch,
+        fencer2SeedRank: fencer2SeedAtMatch
+      }
     })
 
     // 4. 處理下一輪晉級推演
-    const nextRound = match.round / 2
     if (nextRound >= 1) {
       const nextPosition = Math.floor(match.position / 2)
       const isFirstFencer = match.position % 2 === 0
@@ -83,39 +163,84 @@ export async function PUT(request: Request, { params }: RouteParams) {
       if (nextMatch && winnerId) {
         await prisma.eliminationMatch.update({
           where: { id: nextMatch.id },
-          data: isFirstFencer ? { fencer1Id: winnerId } : { fencer2Id: winnerId }
+          data: isFirstFencer
+            ? {
+                fencer1Id: winnerId,
+                // 把晉級到下一輪時的 seedRank 也一併記錄在下一場 match 上
+                fencer1SeedRank: newWinnerSeed ?? undefined
+              }
+            : {
+                fencer2Id: winnerId,
+                fencer2SeedRank: newWinnerSeed ?? undefined
+              }
         })
       }
 
       // 輸家打三四名戰
-      if (match.round === 2 && match.bracket.hasThirdPlace && loserId) {
-        const thirdPlaceMatch = await prisma.eliminationMatch.findFirst({
-          where: { bracketId: match.bracketId, isThirdPlace: true }
-        })
-
-        if (thirdPlaceMatch) {
-          const isFirst = match.position === 0
-          await prisma.eliminationMatch.update({
-            where: { id: thirdPlaceMatch.id },
-            data: isFirst ? { fencer1Id: loserId } : { fencer2Id: loserId }
+      if (match.round === 2 && loserId) {
+        if (match.bracket.hasThirdPlace){
+          const thirdPlaceMatch = await prisma.eliminationMatch.findFirst({
+            where: { bracketId: match.bracketId, isThirdPlace: true }
           })
+
+          if (thirdPlaceMatch) {
+            const isFirst = match.position === 0
+            await prisma.eliminationMatch.update({
+              where: { id: thirdPlaceMatch.id },
+              data: isFirst
+                ? {
+                    fencer1Id: loserId,
+                    fencer1SeedRank: newLoserSeed ?? undefined
+                  }
+                : {
+                    fencer2Id: loserId,
+                    fencer2SeedRank: newLoserSeed ?? undefined
+                  }
+            })
+          }
+        }else{
+          // 沒有三四名戰的話，直接把輸家 finalRank 設為 3
+          await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 3 } })
         }
       }
     }
 
     // 5. 計算並寫入 Final Rank (最終名次)
-    if (match.round === 1 && !match.isThirdPlace) {
+    if (match.round === 1 && !match.isThirdPlace) { // 冠亞賽結束
       await prisma.fencer.update({ where: { id: winnerId! }, data: { finalRank: 1 } })
       if (loserId) await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 2 } })
-      await prisma.category.update({ where: { id: match.bracket.categoryId }, data: { status: 'finished' } })
+
+      // 檢查是否可以將整個 Category 設為 finished
+      if (!match.bracket.hasThirdPlace) {
+        // 沒有三四名戰，直接結束
+        await prisma.category.update({ where: { id: match.bracket.categoryId }, data: { status: 'finished' } })
+      } else {
+        // 有三四名戰，要檢查三四名戰是否也打完了
+        const thirdPlaceMatch = await prisma.eliminationMatch.findFirst({
+          where: { bracketId: match.bracketId, isThirdPlace: true },
+          select: { completed: true }
+        })
+        if (thirdPlaceMatch?.completed) {
+          await prisma.category.update({ where: { id: match.bracket.categoryId }, data: { status: 'finished' } })
+        }
+      }
       
-    } else if (match.isThirdPlace) {
+    } else if (match.isThirdPlace) { // 三四名戰結束
       await prisma.fencer.update({ where: { id: winnerId! }, data: { finalRank: 3 } })
       if (loserId) await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 4 } })
       
+      // 檢查冠亞賽是否也打完了
+      const finalMatch = await prisma.eliminationMatch.findFirst({
+        where: { bracketId: match.bracketId, round: 1, isThirdPlace: false },
+        select: { completed: true }
+      })
+      if (finalMatch?.completed) {
+        await prisma.category.update({ where: { id: match.bracket.categoryId }, data: { status: 'finished' } })
+      }
+
     } else {
       // 一般淘汰賽敗者名次：根據同一階段所有被淘汰者的「小組賽成績」與「可用的seedRank(即淘汰者當下的seedRank)」重新排序分配
-      const isPermanentlyEliminated = !(match.round === 2 && match.bracket.hasThirdPlace)
+      const isPermanentlyEliminated = !(match.round === 2)
       if (isPermanentlyEliminated && loserId) {
         
         // 取得同一輪 (包含本場) 所有的已完賽結果

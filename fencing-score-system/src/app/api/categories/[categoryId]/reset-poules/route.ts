@@ -33,6 +33,14 @@ export async function POST(
       )
     }
 
+    // 已進入淘汰賽或比賽已結束時，不可再重置小組賽資料
+    if (category.status === 'elimination' || category.status === 'finished') {
+      return NextResponse.json(
+        { success: false, error: '分組賽階段已結束，無法重置分組' },
+        { status: 400 }
+      )
+    }
+
     // 刪除該組別的所有小組（會自動級聯刪除 matches）
     await prisma.poule.deleteMany({
       where: { categoryId }

@@ -54,6 +54,28 @@ export async function PUT(request: Request, { params }: RouteParams) {
       )
     }
 
+    // 檢查小組所屬組別目前是否仍在分組賽階段
+    const pouleForStatus = await prisma.poule.findUnique({
+      where: { id: pouleId },
+      include: {
+        category: true
+      }
+    })
+
+    if (!pouleForStatus) {
+      return NextResponse.json(
+        { success: false, error: '找不到該小組' },
+        { status: 404 }
+      )
+    }
+
+    if (pouleForStatus.category.status !== 'poule') {
+      return NextResponse.json(
+        { success: false, error: '分組賽階段已結束，無法再修改小組賽成績' },
+        { status: 400 }
+      )
+    }
+
     // 更新比賽分數
     const match = await prisma.pouleMatch.update({
       where: { id: matchId },

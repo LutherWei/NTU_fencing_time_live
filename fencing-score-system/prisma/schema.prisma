@@ -106,7 +106,7 @@ model Bracket {
   categoryId      String   @unique
   category        Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   
-  eliminationRate Float    @default(0.25) // 淘汰比率（0-1，0.25表示淘汰25%）
+  eliminationRate Float    @default(0) // 
   hasThirdPlace   Boolean  @default(false) // 是否決定三四名
   totalRounds     Int      @default(0)     // 總輪數
   
@@ -129,6 +129,9 @@ model EliminationMatch {
   fencer1     Fencer?  @relation("Fencer1", fields: [fencer1Id], references: [id])
   fencer2Id   String?
   fencer2     Fencer?  @relation("Fencer2", fields: [fencer2Id], references: [id])
+  // 該場比賽時，兩位選手的 seed 排名快照
+  fencer1SeedRank Int?
+  fencer2SeedRank Int?
   
   score1      Int?
   score2      Int?

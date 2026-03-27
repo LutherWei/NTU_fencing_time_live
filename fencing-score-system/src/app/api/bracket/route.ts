@@ -67,6 +67,26 @@ export async function POST(request: Request) {
       )
     }
 
+    // 若比賽已被標記為 finished，禁止重新建立淘汰賽
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { status: true }
+    })
+
+    if (!category) {
+      return NextResponse.json(
+        { success: false, error: '找不到該組別' },
+        { status: 404 }
+      )
+    }
+
+    if (category.status === 'finished') {
+      return NextResponse.json(
+        { success: false, error: '比賽已結束，無法重新建立淘汰賽' },
+        { status: 400 }
+      )
+    }
+
     // 獲取該組別所有已完成分組賽的選手
     const fencers = await prisma.fencer.findMany({
       where: { categoryId },
@@ -175,7 +195,9 @@ export async function POST(request: Request) {
           isBye: match.isBye,
           isThirdPlace: match.isThirdPlace,
           winnerId: match.isBye ? (match.fencer1Id || match.fencer2Id) : null,
-          completed: match.isBye
+          completed: match.isBye,
+          fencer1SeedRank: match.fencer1Seed,
+          fencer2SeedRank: match.fencer2Seed,
         }
       })
     }
