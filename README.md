@@ -99,7 +99,7 @@ npx prisma db seed
 ```bash
 npm run dev
 ```
-開啟瀏覽器前往 [http://localhost:3000]
+開啟瀏覽器前往 [http://localhost:3000/]
 
 
 ### 4. 建置正式環境
@@ -115,6 +115,7 @@ tmux
 ./ngrok http --domain=rolanda-indistinguishable-agonisedly.ngrok-free.dev 3001
 ```
 開啟瀏覽器前往 [https://rolanda-indistinguishable-agonisedly.ngrok-free.dev/]
+
 ---
 
 ## 📖 使用指南
