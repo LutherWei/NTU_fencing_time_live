@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { BracketTree } from '@/components/bracket/BracketTree'
+import type { EliminationMatch } from '@/components/bracket/MatchNode'
 import { ArrowLeft, Trophy, Medal } from 'lucide-react'
 import { formatIndicator, formatWinRate, calculateQualifiedCount } from '@/lib/fencing-math'
 
@@ -22,25 +23,6 @@ interface Fencer {
   pouleRank: number | null
 }
 
-interface EliminationMatch {
-  id: string
-  round: number
-  position: number
-  fencer1Id: string | null
-  fencer2Id: string | null
-  fencer1: Fencer | null
-  fencer2: Fencer | null
-  fencer1SeedRank: number | null
-  fencer2SeedRank: number | null
-  score1: number | null
-  score2: number | null
-  winnerId: string | null
-  winner: Fencer | null
-  isBye: boolean
-  isThirdPlace: boolean
-  completed: boolean
-}
-
 interface Bracket {
   id: string
   matches: EliminationMatch[]
@@ -52,6 +34,7 @@ interface Category {
   id: string
   name: string
   status: string
+  competitionType: 'INDIVIDUAL' | 'TEAM'
   fencers: Fencer[]
   bracket: Bracket | null
 }
@@ -121,6 +104,29 @@ export default function BracketPage({ params }: PageProps) {
 
   const eliminationRate = category.bracket?.eliminationRate ?? 0
   const qualifiedCount = calculateQualifiedCount(category.fencers.length, eliminationRate)
+  const formattedMatches = category.bracket?.matches.map((match: any) => {
+    const isTeam = category.competitionType === 'TEAM'
+    const entity1 = isTeam ? match.team1 : match.fencer1
+    const entity2 = isTeam ? match.team2 : match.fencer2
+
+    return {
+      ...match,
+      // 將後端的實體映射為前端共用的 participant 格式
+      participant1: entity1 ? {
+        id: entity1.id,
+        name: entity1.name,
+        seedRank: match.participant1SeedRank ?? entity1.seedRank
+      } : null,
+      participant2: entity2 ? {
+        id: entity2.id,
+        name: entity2.name,
+        seedRank: match.participant2SeedRank ?? entity2.seedRank
+      } : null,
+      // 提取 seedRank
+      participant1SeedRank: match.participant1SeedRank ?? null,
+      participant2SeedRank: match.participant2SeedRank ?? null,
+    }
+  }) || []
 
   return (
     <div className="space-y-6">
@@ -156,10 +162,11 @@ export default function BracketPage({ params }: PageProps) {
             淘汰賽賽程
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {category.bracket ? (
             <BracketTree
-              matches={category.bracket.matches}
+              matches={formattedMatches}
+              competitionType={category.competitionType}
               isAdmin={true}
               onMatchUpdate={fetchCategory}
             />

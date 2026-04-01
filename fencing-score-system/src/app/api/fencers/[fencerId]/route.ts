@@ -143,12 +143,14 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
       if (poule) {
         const remainingFencerIds = poule.fencers.map(f => f.id)
-        const matchResults = poule.matches.map(m => ({
-          fencer1Id: m.fencer1Id,
-          fencer2Id: m.fencer2Id,
-          score1: m.score1!,
-          score2: m.score2!
-        }))
+        const matchResults = poule.matches
+          .filter(m => m.fencer1Id && m.fencer2Id)
+          .map(m => ({
+            participant1Id: m.fencer1Id!,
+            participant2Id: m.fencer2Id!,
+            score1: m.score1!,
+            score2: m.score2!
+          }))
 
         const stats = calculatePouleStats(remainingFencerIds, matchResults)
 

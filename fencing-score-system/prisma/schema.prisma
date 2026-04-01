@@ -12,53 +12,92 @@ datasource db {
 model Admin {
   id        String   @id @default(cuid())
   username  String   @unique
-  password  String   // bcrypt hashed
+  password  String // bcrypt hashed
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 // Category 組別（如男子鈍劍、女子鈍劍等）
 model Category {
-  id          String   @id @default(cuid())
-  name        String   // 組別名稱
-  status      String   @default("checkin") // checkin | poule | elimination | finished
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  fencers     Fencer[]
-  poules      Poule[]
-  bracket     Bracket?
+  id              String   @id @default(cuid())
+  name            String // 組別名稱
+  competitionType String   @default("INDIVIDUAL") // INDIVIDUAL | TEAM
+  status          String   @default("checkin") // checkin | poule | elimination | finished
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  fencers Fencer[]
+  teams   Team[]
+  poules  Poule[]
+  bracket Bracket?
+}
+
+// Team 團體
+model Team {
+  id         String   @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  members    Fencer[]
+
+  // 分組賽結果
+  pouleId String?
+  poule   Poule?  @relation(fields: [pouleId], references: [id])
+
+  // 分組賽統計
+  victories       Int   @default(0)
+  defeats         Int   @default(0)
+  touchesScored   Int   @default(0)
+  touchesReceived Int   @default(0)
+  indicator       Int   @default(0)
+  winRate         Float @default(0)
+
+  // 最終排名
+  seedRank  Int?
+  pouleRank Int?
+  finalRank Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 淘汰賽關聯
+  matchesAsTeam1 EliminationMatch[] @relation("Team1")
+  matchesAsTeam2 EliminationMatch[] @relation("Team2")
+  wonMatches     EliminationMatch[] @relation("WinnerTeam")
 }
 
 // Fencer 選手
 model Fencer {
-  id          String   @id @default(cuid())
-  name        String
-  checkedIn   Boolean  @default(false)
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
+  id         String   @id @default(cuid())
+  name       String
+  checkedIn  Boolean  @default(false)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  teamId       String?
+  team         Team?   @relation(fields: [teamId], references: [id])
+  isSubstitute Boolean @default(false)
+
   // 分組賽結果
-  pouleId     String?
-  poule       Poule?   @relation(fields: [pouleId], references: [id])
-  
+  pouleId String?
+  poule   Poule?  @relation(fields: [pouleId], references: [id])
+
   // 分組賽統計
-  victories   Int      @default(0)
-  defeats     Int      @default(0)
-  touchesScored Int    @default(0)  // 得分 (TS)
-  touchesReceived Int  @default(0)  // 失分 (TR)
-  indicator   Int      @default(0)  // 淨得失分 (Ind = TS - TR)
-  winRate     Float    @default(0)  // 勝率
-  
+  victories       Int   @default(0)
+  defeats         Int   @default(0)
+  touchesScored   Int   @default(0)
+  touchesReceived Int   @default(0)
+  indicator       Int   @default(0)
+  winRate         Float @default(0)
+
   // 最終排名
-  seedRank    Int?     // 種子排名（分組賽後）
-  pouleRank   Int?     // 初賽排名（分組賽剛結束的絕對排名，永不因為淘汰賽變動）
-  finalRank   Int?     // 最終排名
-  
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  seedRank  Int? // 種子排名（分組賽後）
+  pouleRank Int? // 初賽排名（分組賽剛結束的絕對排名，永不因為淘汰賽變動）
+  finalRank Int? // 最終排名
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // 淘汰賽關聯
   matchesAsFencer1 EliminationMatch[] @relation("Fencer1")
   matchesAsFencer2 EliminationMatch[] @relation("Fencer2")
@@ -67,89 +106,143 @@ model Fencer {
 
 // Poule 分組賽小組
 model Poule {
-  id          String   @id @default(cuid())
-  name        String   // 小組名稱（如 A組、B組）
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
-  fencers     Fencer[]
-  matches     PouleMatch[]
-  
-  completed   Boolean  @default(false)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String // 小組名稱（如 A組、B組）
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  fencers Fencer[]
+  teams   Team[]
+  matches PouleMatch[]
+
+  completed Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // PouleMatch 分組賽對戰
 model PouleMatch {
-  id          String   @id @default(cuid())
-  pouleId     String
-  poule       Poule    @relation(fields: [pouleId], references: [id], onDelete: Cascade)
-  
-  fencer1Id   String   // row index fencer
-  fencer2Id   String   // column index fencer
-  score1      Int?     // fencer1 的得分
-  score2      Int?     // fencer2 的得分
-  
-  completed   Boolean  @default(false)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id      String @id @default(cuid())
+  pouleId String
+  poule   Poule  @relation(fields: [pouleId], references: [id], onDelete: Cascade)
+
+  fencer1Id String? // row index fencer
+  fencer2Id String? // column index fencer
+  team1Id   String?
+  team2Id   String?
+
+  score1 Int? // fencer1 的得分
+  score2 Int? // fencer2 的得分
+
+  completed Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  detail TeamMatchDetail?
+
   @@unique([pouleId, fencer1Id, fencer2Id])
 }
 
 // Bracket 淘汰賽
 model Bracket {
-  id              String   @id @default(cuid())
-  categoryId      String   @unique
-  category        Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
-  eliminationRate Float    @default(0) // 
-  hasThirdPlace   Boolean  @default(false) // 是否決定三四名
-  totalRounds     Int      @default(0)     // 總輪數
-  
-  matches         EliminationMatch[]
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id         String   @id @default(cuid())
+  categoryId String   @unique
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  eliminationRate Float   @default(0) // 
+  hasThirdPlace   Boolean @default(false) // 是否決定三四名
+  totalRounds     Int     @default(0) // 總輪數
+
+  matches EliminationMatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // EliminationMatch 淘汰賽對戰
 model EliminationMatch {
-  id          String   @id @default(cuid())
-  bracketId   String
-  bracket     Bracket  @relation(fields: [bracketId], references: [id], onDelete: Cascade)
-  
-  round       Int      // 輪次（1 = 決賽，2 = 四強，4 = 八強...）
-  position    Int      // 該輪次中的位置
-  
-  fencer1Id   String?
-  fencer1     Fencer?  @relation("Fencer1", fields: [fencer1Id], references: [id])
-  fencer2Id   String?
-  fencer2     Fencer?  @relation("Fencer2", fields: [fencer2Id], references: [id])
+  id        String  @id @default(cuid())
+  bracketId String
+  bracket   Bracket @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+
+  round    Int // 輪次（1 = 決賽，2 = 四強，4 = 八強...）
+  position Int // 該輪次中的位置
+
+  fencer1Id String?
+  fencer1   Fencer? @relation("Fencer1", fields: [fencer1Id], references: [id])
+  fencer2Id String?
+  fencer2   Fencer? @relation("Fencer2", fields: [fencer2Id], references: [id])
+  team1Id   String?
+  team1     Team?   @relation("Team1", fields: [team1Id], references: [id])
+  team2Id   String?
+  team2     Team?   @relation("Team2", fields: [team2Id], references: [id])
+
   // 該場比賽時，兩位選手的 seed 排名快照
-  fencer1SeedRank Int?
-  fencer2SeedRank Int?
-  
-  score1      Int?
-  score2      Int?
-  
-  winnerId    String?
-  winner      Fencer?  @relation("Winner", fields: [winnerId], references: [id])
-  
-  isBye       Boolean  @default(false) // 輪空
+  fencer1SeedRank      Int?
+  fencer2SeedRank      Int?
+  participant1SeedRank Int?
+  participant2SeedRank Int?
+
+  score1 Int?
+  score2 Int?
+
+  winnerId     String?
+  winner       Fencer? @relation("Winner", fields: [winnerId], references: [id])
+  winnerTeamId String?
+  winnerTeam   Team?   @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
+
+  isBye        Boolean @default(false) // 輪空
   isThirdPlace Boolean @default(false) // 三四名決定戰
-  
+
   // 前一輪的比賽連結
   prevMatch1Id String?
   prevMatch2Id String?
-  
-  completed   Boolean  @default(false)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+
+  completed Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  detail TeamMatchDetail?
+
   @@unique([bracketId, round, position])
+}
+
+// TeamMatchDetail 團體賽詳細比分
+model TeamMatchDetail {
+  id                 String            @id @default(cuid())
+  pouleMatchId       String?           @unique
+  pouleMatch         PouleMatch?       @relation(fields: [pouleMatchId], references: [id], onDelete: Cascade)
+  eliminationMatchId String?           @unique
+  eliminationMatch   EliminationMatch? @relation(fields: [eliminationMatchId], references: [id], onDelete: Cascade)
+
+  bouts TeamBout[]
+  
+  // 棒次設置信息：包含 seq1, seq2, lineup1, lineup2 等 JSON 數據
+  setupData String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// TeamBout 團體賽中的單一對戰
+model TeamBout {
+  id            String          @id @default(cuid())
+  matchDetailId String
+  matchDetail   TeamMatchDetail @relation(fields: [matchDetailId], references: [id], onDelete: Cascade)
+
+  order Int // 對戰順序 1-9
+
+  fencer1Id String
+  fencer2Id String
+
+  score1 Int
+  score2 Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([matchDetailId, order])
 }

@@ -21,6 +21,9 @@ export async function GET(request: Request) {
         fencers: {
           orderBy: { name: 'asc' }
         },
+        teams: {
+          orderBy: { name: 'asc' }
+        },
         matches: true
       },
       orderBy: { name: 'asc' }
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     const { categoryId, poules } = await request.json()
-    // poules: Array<{ name: string, fencerIds: string[] }>
+    // poules: Array<{ name: string, fencerIds?: string[], teamIds?: string[] }>
 
     if (!categoryId || !poules || !Array.isArray(poules)) {
       return NextResponse.json(
@@ -60,11 +63,28 @@ export async function POST(request: Request) {
       )
     }
 
-    // 驗證每組人數（4-8人）
+    // 獲取 category 看看是否為團體賽
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId }
+    })
+    
+    if (!category) {
+      return NextResponse.json(
+        { success: false, error: '找不到組別' },
+        { status: 404 }
+      )
+    }
+    
+    const isTeam = category.competitionType === 'TEAM'
+    const unitName = isTeam ? '隊' : '人'
+    const lowerbound = isTeam ? 3:4
+
+    // 驗證每組人數（4-8人/隊）
     for (const poule of poules) {
-      if (poule.fencerIds.length < 4 || poule.fencerIds.length > 8) {
+      const items = isTeam ? poule.teamIds : poule.fencerIds
+      if (!items || items.length < lowerbound || items.length > 8) {
         return NextResponse.json(
-          { success: false, error: `小組 ${poule.name} 人數須為4-8人` },
+          { success: false, error: `小組 ${poule.name} 數量須為${lowerbound}-8${unitName}` },
           { status: 400 }
         )
       }
@@ -78,29 +98,45 @@ export async function POST(request: Request) {
     // 創建新的小組
     const createdPoules = []
     for (const pouleData of poules) {
-      const poule = await prisma.poule.create({
-        data: {
-          name: pouleData.name,
-          categoryId,
-          fencers: {
-            connect: pouleData.fencerIds.map((id: string) => ({ id }))
+      const items = isTeam ? pouleData.teamIds : pouleData.fencerIds
+      
+      const createData = isTeam
+        ? {
+            name: pouleData.name,
+            categoryId,
+            teams: { connect: items.map((id: string) => ({ id })) }
           }
-        },
+        : {
+            name: pouleData.name,
+            categoryId,
+            fencers: { connect: items.map((id: string) => ({ id })) }
+          };
+
+      const poule = await prisma.poule.create({
+        data: createData,
         include: {
-          fencers: true
+          fencers: true,
+          teams: true
         }
       })
 
       // 創建該小組的所有對戰（組合）
-      const fencerIds = pouleData.fencerIds
-      for (let i = 0; i < fencerIds.length; i++) {
-        for (let j = i + 1; j < fencerIds.length; j++) {
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const matchData = isTeam
+            ? {
+                pouleId: poule.id,
+                team1Id: items[i],
+                team2Id: items[j]
+              }
+            : {
+                pouleId: poule.id,
+                fencer1Id: items[i],
+                fencer2Id: items[j]
+              };
+          
           await prisma.pouleMatch.create({
-            data: {
-              pouleId: poule.id,
-              fencer1Id: fencerIds[i],
-              fencer2Id: fencerIds[j]
-            }
+            data: matchData
           })
         }
       }

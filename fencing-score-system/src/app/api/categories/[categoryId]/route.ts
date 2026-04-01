@@ -20,9 +20,15 @@ export async function GET(request: Request, { params }: RouteParams) {
             { name: 'asc' }
           ]
         },
+        teams: {
+          include: {
+            members: true
+          }
+        },
         poules: {
           include: {
             fencers: true,
+            teams: true,
             matches: true
           }
         },
@@ -32,7 +38,10 @@ export async function GET(request: Request, { params }: RouteParams) {
               include: {
                 fencer1: true,
                 fencer2: true,
-                winner: true
+                winner: true,
+                team1: true,
+                team2: true,
+                winnerTeam: true
               },
               orderBy: [
                 { round: 'asc' },

@@ -21,12 +21,27 @@ interface Fencer {
   indicator: number
   winRate: number
   pouleRank?: number | null
+  teamId?: string | null
+}
+
+interface Team {
+  id: string
+  name: string
+  victories: number
+  defeats: number
+  touchesScored: number
+  touchesReceived: number
+  indicator: number
+  winRate: number
+  pouleRank?: number | null
 }
 
 interface PouleMatch {
   id: string
-  fencer1Id: string
-  fencer2Id: string
+  fencer1Id: string | null
+  fencer2Id: string | null
+  team1Id: string | null
+  team2Id: string | null
   score1: number | null
   score2: number | null
   completed: boolean
@@ -36,6 +51,7 @@ interface Poule {
   id: string
   name: string
   fencers: Fencer[]
+  teams: Team[]
   matches: PouleMatch[]
   completed: boolean
 }
@@ -44,7 +60,9 @@ interface Category {
   id: string
   name: string
   status: string
+  competitionType: 'INDIVIDUAL' | 'TEAM'
   fencers: Fencer[]
+  teams: Team[]
   poules: Poule[]
 }
 
@@ -61,6 +79,8 @@ export default function PoulesPage({ params }: PageProps) {
   const [isResetOpen, setIsResetOpen] = useState(false)
   const [isAddFencerOpen, setIsAddFencerOpen] = useState(false)
   const [newFencerName, setNewFencerName] = useState('')
+  const [newTeamName, setNewTeamName] = useState('')
+  const [teamMembers, setTeamMembers] = useState(['', '', '', ''])
   const [eliminationRate, setEliminationRate] = useState(0)
   const [hasThirdPlace, setHasThirdPlace] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -85,7 +105,8 @@ export default function PoulesPage({ params }: PageProps) {
 
   // 檢查所有分組賽是否完成
   const allPoulesCompleted = category?.poules.every(p => {
-    const totalMatches = (p.fencers.length * (p.fencers.length - 1)) / 2
+    const participantCount = category.competitionType === 'TEAM' ? p.teams.length : p.fencers.length
+    const totalMatches = (participantCount * (participantCount - 1)) / 2
     const completedMatches = p.matches.filter(m => m.completed).length
     return completedMatches >= totalMatches
   }) ?? false
@@ -93,18 +114,33 @@ export default function PoulesPage({ params }: PageProps) {
 
 
   const handleAddFencer = async () => {
-    if (!newFencerName.trim()) return
+    const isTeam = category?.competitionType === 'TEAM'
+    const name = isTeam ? newTeamName : newFencerName
+
+    if (!name.trim()) return
+
+    let members: string[] = []
+    if (isTeam) {
+      members = teamMembers.filter(m => m.trim() !== '')
+      if (members.length < 3) {
+        alert('一個隊伍至少需要3位成員')
+        return
+      }
+    }
+
     setIsSubmitting(true)
     try {
       const res = await fetch(`/api/poules/add-fencer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categoryId, name: newFencerName })
+        body: JSON.stringify({ categoryId, name: name.trim(), members: isTeam ? members : undefined })
       })
       const data = await res.json()
       if (data.success) {
         setIsAddFencerOpen(false)
         setNewFencerName('')
+        setNewTeamName('')
+        setTeamMembers(['', '', '', ''])
         fetchCategory()
       } else {
         alert(data.error || '新增失敗')
@@ -212,7 +248,14 @@ export default function PoulesPage({ params }: PageProps) {
   const getPouleRankings = () => {
     if (!category) return []
     
-    return [...category.fencers].sort((a, b) => {
+    const participants = category.competitionType === 'TEAM' ? category.teams : category.fencers;
+
+    return [...participants].sort((a, b) => {
+      // 優先使用資料庫存的初賽名次 (pouleRank)
+      if (a.pouleRank != null && b.pouleRank != null) {
+        if (a.pouleRank !== b.pouleRank) return a.pouleRank - b.pouleRank
+      }
+
       // 依據勝率 -> 淨得分 -> 總得分 降序
       if (a.winRate !== b.winRate) return b.winRate - a.winRate
       if (a.indicator !== b.indicator) return b.indicator - a.indicator
@@ -223,8 +266,9 @@ export default function PoulesPage({ params }: PageProps) {
   }
 
   const pouleRankings = getPouleRankings()
+  const participantCount = category?.competitionType === 'TEAM' ? category.teams.length : category.fencers.length
   const eliminatedCount = parseInt(eliminationRate.toString()) || 0
-  const qualifiedCount = calculateQualifiedCount(category.fencers.length, eliminatedCount / 100)
+  const qualifiedCount = calculateQualifiedCount(participantCount, eliminatedCount / 100)
 
   return (
     <div className="space-y-6">
@@ -251,7 +295,7 @@ export default function PoulesPage({ params }: PageProps) {
                 className="text-red-700 border-red-200 hover:bg-red-50"
               >
                 <UserPlus className="h-4 w-4 mr-2" />
-                新增選手
+                {category.competitionType === 'TEAM' ? '新增隊伍' : '新增選手'}
               </Button>
               <Button
                 variant="outline"
@@ -299,10 +343,8 @@ export default function PoulesPage({ params }: PageProps) {
                 <PouleMatrix
                   pouleId={poule.id}
                   pouleName={poule.name}
-                  fencers={poule.fencers.map(f => ({
-                    ...f,
-                    isEliminated: f.pouleRank != null && (f.pouleRank as number) > qualifiedCount
-                  }))}
+                  competitionType={category.competitionType}
+                  participants={category.competitionType === 'TEAM' ? poule.teams : poule.fencers}
                   matches={poule.matches}
                   isAdmin={true}
                   onScoreUpdate={fetchCategory}
@@ -312,7 +354,7 @@ export default function PoulesPage({ params }: PageProps) {
             </Card>
           ))}
 
-          {category.fencers.length > 0 && (
+          {participantCount > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>預覽初賽排名</CardTitle>
@@ -323,7 +365,7 @@ export default function PoulesPage({ params }: PageProps) {
                     <thead>
                       <tr className="border-b border-gray-200">
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">初賽名次</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">{category.competitionType === 'TEAM' ? '隊伍' : '選手'}</th>
                         <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽勝率</th>
                         <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽得分</th>
                         <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽失分</th>
@@ -331,32 +373,32 @@ export default function PoulesPage({ params }: PageProps) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {pouleRankings.map((fencer, idx) => {
-                        const rank = fencer.pouleRank ?? idx + 1
+                      {pouleRankings.map((participant, idx) => {
+                        const rank = participant.pouleRank ?? idx + 1
                         const isEliminated = rank > qualifiedCount
                         return (
-                          <tr key={fencer.id} className={isEliminated ? 'bg-red-100' : ''}>
+                          <tr key={participant.id} className={isEliminated ? 'bg-red-100' : ''}>
                             <td className={`px-4 py-3 text-sm font-bold ${isEliminated ? 'text-red-700' : 'text-gray-900'}`}>
                               {rank}
                               {isEliminated && <span className="ml-2 text-xs font-normal text-red-600">(淘汰)</span>}
                             </td>
                             <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                              {fencer.name}
+                              {participant.name}
                             </td>
                             <td className="px-4 py-3 text-sm text-center text-gray-600">
-                              {formatWinRate(fencer.winRate)}
+                              {formatWinRate(participant.winRate)}
                             </td>
                             <td className="px-4 py-3 text-sm text-center text-gray-600">
-                              {fencer.touchesScored}
+                              {participant.touchesScored}
                             </td>
                             <td className="px-4 py-3 text-sm text-center text-gray-600">
-                              {fencer.touchesReceived}
+                              {participant.touchesReceived}
                             </td>
                             <td className={`px-4 py-3 text-sm text-center font-medium ${
-                              fencer.indicator > 0 ? 'text-green-600' :
-                              fencer.indicator < 0 ? 'text-red-600' : 'text-gray-600'
+                              participant.indicator > 0 ? 'text-green-600' :
+                              participant.indicator < 0 ? 'text-red-600' : 'text-gray-600'
                             }`}>
-                              {formatIndicator(fencer.indicator)}
+                              {formatIndicator(participant.indicator)}
                             </td>
                           </tr>
                         )
@@ -390,7 +432,7 @@ export default function PoulesPage({ params }: PageProps) {
               onChange={(e) => setEliminationRate(parseInt(e.target.value) || 0)}
             />
             <p className="text-sm text-gray-500 mt-1">
-              將有 {Math.ceil(category.fencers.length * (1 - eliminationRate / 100))} 位選手晉級淘汰賽
+              將有 {Math.ceil(participantCount * (1 - eliminationRate / 100))} 位{category.competitionType === 'TEAM' ? '隊伍' : '選手'}晉級淘汰賽
             </p>
           </div>
 
@@ -461,21 +503,56 @@ export default function PoulesPage({ params }: PageProps) {
       <Modal
         isOpen={isAddFencerOpen}
         onClose={() => setIsAddFencerOpen(false)}
-        title="新增選手"
+        title={category.competitionType === 'TEAM' ? "新增隊伍" : "新增選手"}
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              選手姓名
-            </label>
-            <Input
-              type="text"
-              value={newFencerName}
-              onChange={(e) => setNewFencerName(e.target.value)}
-              placeholder="輸入選手名字"
-              autoFocus
-            />
-          </div>
+          {category.competitionType === 'TEAM' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  隊伍名稱
+                </label>
+                <Input
+                  type="text"
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  placeholder="輸入隊伍名稱"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  隊員名單 (至少3位)
+                </label>
+                {[0, 1, 2, 3].map((index) => (
+                  <Input
+                    key={index}
+                    type="text"
+                    value={teamMembers[index]}
+                    onChange={(e) => {
+                      const newMembers = [...teamMembers]
+                      newMembers[index] = e.target.value
+                      setTeamMembers(newMembers)
+                    }}
+                    placeholder={`隊員 ${index + 1}${index === 3 ? ' (候補/選填)' : ' (必填)'}`}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                選手姓名
+              </label>
+              <Input
+                type="text"
+                value={newFencerName}
+                onChange={(e) => setNewFencerName(e.target.value)}
+                placeholder="輸入選手名字"
+                autoFocus
+              />
+            </div>
+          )}
 
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={() => setIsAddFencerOpen(false)}>
@@ -483,7 +560,7 @@ export default function PoulesPage({ params }: PageProps) {
             </Button>
             <Button
               onClick={handleAddFencer}
-              disabled={isSubmitting || !newFencerName.trim()}
+              disabled={isSubmitting || (category.competitionType === 'TEAM' ? !newTeamName.trim() : !newFencerName.trim())}
             >
               {isSubmitting ? '處理中...' : '確定新增'}
             </Button>

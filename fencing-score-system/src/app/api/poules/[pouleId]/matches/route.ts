@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
-import { calculatePouleStats } from '@/lib/fencing-math'
 
 interface RouteParams {
   params: Promise<{ pouleId: string }>
@@ -45,7 +44,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const { pouleId } = await params
-    const { matchId, score1, score2 } = await request.json()
+    const { matchId, score1, score2, isTeamMatch } = await request.json()
 
     if (typeof score1 !== 'number' || typeof score2 !== 'number') {
       return NextResponse.json(
@@ -57,9 +56,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     // 檢查小組所屬組別目前是否仍在分組賽階段
     const pouleForStatus = await prisma.poule.findUnique({
       where: { id: pouleId },
-      include: {
-        category: true
-      }
+      include: { category: true } // 這裡不需要深度 include，減少資料庫負擔
     })
 
     if (!pouleForStatus) {
@@ -76,7 +73,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       )
     }
 
-    // 更新比賽分數
+    // 1. 更新這場比賽的分數
     const match = await prisma.pouleMatch.update({
       where: { id: matchId },
       data: {
@@ -86,53 +83,105 @@ export async function PUT(request: Request, { params }: RouteParams) {
       }
     })
 
-    // 獲取該小組的所有比賽和選手，重新計算統計
+    // 2. 獲取該小組的「所有比賽」，以此為基準進行統計
     const poule = await prisma.poule.findUnique({
       where: { id: pouleId },
       include: {
-        fencers: true,
-        matches: {
-          where: { completed: true }
-        }
+        matches: true // 抓出所有比賽（不論打完沒），確保能算對「總場次」
       }
     })
 
     if (poule) {
-      const fencerIds = poule.fencers.map(f => f.id)
-      const matchResults = poule.matches.map(m => ({
-        fencer1Id: m.fencer1Id,
-        fencer2Id: m.fencer2Id,
-        score1: m.score1!,
-        score2: m.score2!
-      }))
+      const allMatches = poule.matches;
+      const completedMatches = allMatches.filter(m => m.completed);
 
-      const stats = calculatePouleStats(fencerIds, matchResults)
+      if (isTeamMatch) {
+        // 🌟 團體賽統計更新：直接從比賽中萃取絕對正確的隊伍 ID
+        const teamIds = new Set<string>();
+        allMatches.forEach(m => {
+          if (m.team1Id) teamIds.add(m.team1Id);
+          if (m.team2Id) teamIds.add(m.team2Id);
+        });
 
-      // 更新每位選手的統計
-      for (const fencer of poule.fencers) {
-        const stat = stats.get(fencer.id)
-        if (stat) {
-          await prisma.fencer.update({
-            where: { id: fencer.id },
-            data: {
-              victories: stat.victories,
-              defeats: stat.defeats,
-              touchesScored: stat.touchesScored,
-              touchesReceived: stat.touchesReceived,
-              indicator: stat.indicator,
-              winRate: stat.winRate
+        for (const tId of Array.from(teamIds)) {
+          let V = 0, M = 0, TS = 0, TR = 0;
+          
+          completedMatches.forEach(m => {
+            if (m.team1Id === tId || m.team2Id === tId) {
+              M++;
+              const myScore = m.team1Id === tId ? m.score1! : m.score2!;
+              const opScore = m.team1Id === tId ? m.score2! : m.score1!;
+              TS += myScore;
+              TR += opScore;
+              if (myScore > opScore) V++;
             }
-          })
-        }
-      }
+          });
 
-      // 檢查小組是否全部完成
-      const totalMatches = (fencerIds.length * (fencerIds.length - 1)) / 2
-      if (poule.matches.length >= totalMatches) {
-        await prisma.poule.update({
-          where: { id: pouleId },
-          data: { completed: true }
-        })
+          await prisma.team.update({
+            where: { id: tId },
+            data: {
+              victories: V,
+              defeats: M - V,
+              touchesScored: TS,
+              touchesReceived: TR,
+              indicator: TS - TR,
+              winRate: M > 0 ? V / M : 0
+            }
+          });
+        }
+
+        // 檢查小組是否全部完成
+        const totalMatches = (teamIds.size * (teamIds.size - 1)) / 2;
+        if (completedMatches.length >= totalMatches && totalMatches > 0) {
+          await prisma.poule.update({
+            where: { id: pouleId },
+            data: { completed: true }
+          });
+        }
+
+      } else {
+        // 🤺 個人賽統計更新：直接從比賽中萃取絕對正確的選手 ID
+        const fencerIds = new Set<string>();
+        allMatches.forEach(m => {
+          if (m.fencer1Id) fencerIds.add(m.fencer1Id);
+          if (m.fencer2Id) fencerIds.add(m.fencer2Id);
+        });
+
+        for (const fId of Array.from(fencerIds)) {
+          let V = 0, M = 0, TS = 0, TR = 0;
+          
+          completedMatches.forEach(m => {
+            if (m.fencer1Id === fId || m.fencer2Id === fId) {
+              M++;
+              const myScore = m.fencer1Id === fId ? m.score1! : m.score2!;
+              const opScore = m.fencer1Id === fId ? m.score2! : m.score1!;
+              TS += myScore;
+              TR += opScore;
+              if (myScore > opScore) V++;
+            }
+          });
+
+          await prisma.fencer.update({
+            where: { id: fId },
+            data: {
+              victories: V,
+              defeats: M - V,
+              touchesScored: TS,
+              touchesReceived: TR,
+              indicator: TS - TR,
+              winRate: M > 0 ? V / M : 0
+            }
+          });
+        }
+
+        // 檢查小組是否全部完成
+        const totalMatches = (fencerIds.size * (fencerIds.size - 1)) / 2;
+        if (completedMatches.length >= totalMatches && totalMatches > 0) {
+          await prisma.poule.update({
+            where: { id: pouleId },
+            data: { completed: true }
+          });
+        }
       }
     }
 

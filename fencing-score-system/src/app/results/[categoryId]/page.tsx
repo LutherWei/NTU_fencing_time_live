@@ -8,8 +8,24 @@ import { BracketTree } from '@/components/bracket/BracketTree'
 import { formatIndicator, formatWinRate, calculateQualifiedCount } from '@/lib/fencing-math'
 import { ArrowLeft, Trophy, Users, Award } from 'lucide-react'
 import Link from 'next/link'
+import type { EliminationMatch } from '@/components/bracket/MatchNode'
 
 interface Fencer {
+  id: string
+  name: string
+  victories: number
+  defeats: number
+  touchesScored: number
+  touchesReceived: number
+  indicator: number
+  winRate: number
+  seedRank: number | null
+  finalRank: number | null
+  pouleRank: number | null
+  teamId?: string | null
+}
+
+interface Team {
   id: string
   name: string
   victories: number
@@ -25,8 +41,12 @@ interface Fencer {
 
 interface PouleMatch {
   id: string
-  fencer1Id: string
-  fencer2Id: string
+  // 個人賽欄位
+  fencer1Id: string | null
+  fencer2Id: string | null
+  // 團體賽欄位（後端原始）
+  team1Id: string | null
+  team2Id: string | null
   score1: number | null
   score2: number | null
   completed: boolean
@@ -36,26 +56,8 @@ interface Poule {
   id: string
   name: string
   fencers: Fencer[]
+  teams?: Team[]
   matches: PouleMatch[]
-  completed: boolean
-}
-
-interface EliminationMatch {
-  id: string
-  round: number
-  position: number
-  fencer1Id: string | null
-  fencer2Id: string | null
-  fencer1: Fencer | null
-  fencer2: Fencer | null
-  fencer1SeedRank: number | null
-  fencer2SeedRank: number | null
-  score1: number | null
-  score2: number | null
-  winnerId: string | null
-  winner: Fencer | null
-  isBye: boolean
-  isThirdPlace: boolean
   completed: boolean
 }
 
@@ -70,16 +72,18 @@ interface Category {
   id: string
   name: string
   status: string
+  competitionType: 'INDIVIDUAL' | 'TEAM'
   fencers: Fencer[]
+  teams?: Team[]
   poules: Poule[]
   bracket: Bracket | null
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {
-  checkin: { label: '檢錄中', color: 'bg-yellow-100 text-yellow-800' },
-  poule: { label: '分組賽', color: 'bg-red-100 text-red-800' },
+  checkin:     { label: '檢錄中', color: 'bg-yellow-100 text-yellow-800' },
+  poule:       { label: '分組賽', color: 'bg-red-100 text-red-800' },
   elimination: { label: '淘汰賽', color: 'bg-purple-100 text-purple-800' },
-  finished: { label: '已結束', color: 'bg-green-100 text-green-800' }
+  finished:    { label: '已結束', color: 'bg-green-100 text-green-800' },
 }
 
 interface PageProps {
@@ -94,6 +98,7 @@ export default function ResultsPage({ params }: PageProps) {
 
   useEffect(() => {
     fetchCategory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryId])
 
   const fetchCategory = async () => {
@@ -101,12 +106,33 @@ export default function ResultsPage({ params }: PageProps) {
       const res = await fetch(`/api/categories/${categoryId}`)
       const data = await res.json()
       if (data.success) {
-        setCategory(data.data)
-        // 根據狀態自動切換標籤
-        if (data.data.status === 'elimination' || data.data.status === 'finished') {
-          if (activeTab === 'poules' && data.data.bracket) {
-            setActiveTab('bracket')
-          }
+        const categoryData: Category = data.data
+
+        if (categoryData.competitionType === 'TEAM') {
+          categoryData.poules = (categoryData.poules || []).map((poule: Poule) => {
+            // 把 team1Id/team2Id 正規化成 PouleMatrix 看得懂的 fencer1Id/fencer2Id
+            //    PouleMatrix 以 participant.id 做交叉比對，所以只要把欄位名稱對齊即可
+            const normalizedMatches: PouleMatch[] = (poule.matches || []).map(m => ({
+              ...m,
+              fencer1Id: m.team1Id,   // 讓 PouleMatrix 的 fencer1Id 欄讀到 team1Id
+              fencer2Id: m.team2Id,   // 讓 PouleMatrix 的 fencer2Id 欄讀到 team2Id
+            }))
+
+            return {
+              ...poule,
+              matches: normalizedMatches,
+            }
+          })
+        }
+
+        setCategory(categoryData)
+
+        if (
+          (categoryData.status === 'elimination' || categoryData.status === 'finished') &&
+          activeTab === 'poules' &&
+          categoryData.bracket
+        ) {
+          setActiveTab('bracket')
         }
       }
     } catch (error) {
@@ -116,12 +142,18 @@ export default function ResultsPage({ params }: PageProps) {
     }
   }
 
-  // 計算初賽排名
-  const getPouleRankings = () => {
+  const getParticipants = () => {
     if (!category) return []
-    
-    return [...category.fencers].sort((a, b) => {
-      // 依據勝率 -> 淨得分 -> 總得分 降序
+    return category.competitionType === 'TEAM'
+      ? (category.teams || [])
+      : (category.fencers || [])
+  }
+
+  const getPouleRankings = () => {
+    const participants = getParticipants()
+    return [...participants].sort((a, b) => {
+      if (a.pouleRank !== null && b.pouleRank !== null && a.pouleRank !== b.pouleRank)
+        return a.pouleRank - b.pouleRank
       if (a.winRate !== b.winRate) return b.winRate - a.winRate
       if (a.indicator !== b.indicator) return b.indicator - a.indicator
       const scoreDiff = b.touchesScored - a.touchesScored
@@ -130,20 +162,15 @@ export default function ResultsPage({ params }: PageProps) {
     })
   }
 
-  // 計算最終排名
   const getFinalRankings = () => {
-    if (!category) return []
-    
-    return [...category.fencers]
-      .sort((a, b) => {
-        // 有最終排名的排前面
-        if (a.finalRank && b.finalRank) return a.finalRank - b.finalRank
-        if (a.finalRank) return -1
-        if (b.finalRank) return 1
-        // 其他按種子排名
-        if (a.seedRank && b.seedRank) return a.seedRank - b.seedRank
-        return 0
-      })
+    const participants = getParticipants()
+    return [...participants].sort((a, b) => {
+      if (a.finalRank && b.finalRank) return a.finalRank - b.finalRank
+      if (a.finalRank) return -1
+      if (b.finalRank) return 1
+      if (a.seedRank && b.seedRank) return a.seedRank - b.seedRank
+      return 0
+    })
   }
 
   if (loading) {
@@ -151,7 +178,7 @@ export default function ResultsPage({ params }: PageProps) {
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700 mx-auto" />
           <p className="mt-4 text-gray-600">載入中...</p>
         </div>
       </div>
@@ -166,9 +193,7 @@ export default function ResultsPage({ params }: PageProps) {
           <Card>
             <CardContent className="py-12 text-center">
               <h3 className="text-lg font-medium text-gray-900">找不到該組別</h3>
-              <Link href="/" className="text-red-700 hover:underline mt-2 inline-block">
-                返回首頁
-              </Link>
+              <Link href="/" className="text-red-700 hover:underline mt-2 inline-block">返回首頁</Link>
             </CardContent>
           </Card>
         </div>
@@ -178,36 +203,56 @@ export default function ResultsPage({ params }: PageProps) {
 
   const rankings = getFinalRankings()
   const pouleRankings = getPouleRankings()
-  
-  // 計算淘汰線
+  const participantCount = getParticipants().length
   const eliminationRate = category.bracket?.eliminationRate ?? 0
-  const qualifiedCount = calculateQualifiedCount(category.fencers.length, eliminationRate)
+  const qualifiedCount = calculateQualifiedCount(participantCount, eliminationRate)
+
+  const formattedMatches = category.bracket?.matches.map((match: any) => {
+    const isTeam = category.competitionType === 'TEAM'
+    const entity1 = isTeam ? match.team1 : match.fencer1
+    const entity2 = isTeam ? match.team2 : match.fencer2
+    return {
+      ...match,
+      participant1: entity1 ? {
+        id: entity1.id,
+        name: entity1.name,
+        seedRank: match.participant1SeedRank ?? entity1.seedRank,
+      } : null,
+      participant2: entity2 ? {
+        id: entity2.id,
+        name: entity2.name,
+        seedRank: match.participant2SeedRank ?? entity2.seedRank,
+      } : null,
+      participant1SeedRank: match.participant1SeedRank ?? null,
+      participant2SeedRank: match.participant2SeedRank ?? null,
+    }
+  }) || []
+
+  const isTeam = category.competitionType === 'TEAM'
+  const participantLabel = isTeam ? '支隊伍' : '位選手'
+  const entityLabel = isTeam ? '隊伍' : '選手'
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 返回連結 */}
         <Link href="/" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6">
           <ArrowLeft className="h-4 w-4 mr-1" />
           返回首頁
         </Link>
 
-        {/* 標題區 */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{category.name}</h1>
-            <p className="text-gray-600 mt-1">
-              {category.fencers.length} 位選手
-            </p>
+            <p className="text-gray-600 mt-1">{participantCount} {participantLabel}</p>
           </div>
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusLabels[category.status]?.color}`}>
             {statusLabels[category.status]?.label}
           </span>
         </div>
 
-        {/* 標籤切換 */}
+        {/* ── Tabs ── */}
         <div className="border-b border-gray-200 mb-6">
           <nav className="-mb-px flex space-x-8">
             <button
@@ -248,35 +293,41 @@ export default function ResultsPage({ params }: PageProps) {
           </nav>
         </div>
 
-        {/* 分組賽 */}
+        {/* ── 分組賽 tab ── */}
         {activeTab === 'poules' && (
           <div className="space-y-8">
             {category.poules.length === 0 ? (
               <Card>
-                <CardContent className="py-8 text-center text-gray-500">
-                  尚未進行分組
-                </CardContent>
+                <CardContent className="py-8 text-center text-gray-500">尚未進行分組</CardContent>
               </Card>
             ) : (
-              category.poules.map((poule) => (
-                <Card key={poule.id}>
-                  <CardContent className="pt-6">
-                    <PouleMatrix
-                      pouleId={poule.id}
-                      pouleName={poule.name}
-                      fencers={poule.fencers.map(f => ({
-                        ...f,
-                        isEliminated: f.pouleRank !== null && f.pouleRank > qualifiedCount
-                      }))}
-                      matches={poule.matches}
-                      isAdmin={false}
-                    />
-                  </CardContent>
-                </Card>
-              ))
+              category.poules.map((poule) => {
+                // 依 competitionType 選擇要傳給 PouleMatrix 的參賽者陣列
+                const pouleParticipants = isTeam
+                  ? (poule.teams || [])
+                  : (poule.fencers || [])
+
+                return (
+                  <Card key={poule.id}>
+                    <CardContent className="pt-6">
+                      <PouleMatrix
+                        pouleId={poule.id}
+                        pouleName={poule.name}
+                        competitionType={category.competitionType}
+                        participants={pouleParticipants}
+                        matches={poule.matches}
+                        isAdmin={false}
+                        onScoreUpdate={fetchCategory}
+                        
+                      />
+                    </CardContent>
+                  </Card>
+                )
+              })
             )}
 
-            {category.fencers.length > 0 && (
+            {/* 初賽排名表 */}
+            {participantCount > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>初賽排名</CardTitle>
@@ -287,7 +338,7 @@ export default function ResultsPage({ params }: PageProps) {
                       <thead>
                         <tr className="border-b border-gray-200">
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">初賽名次</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">選手</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">{entityLabel}</th>
                           <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽勝率</th>
                           <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽得分</th>
                           <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽失分</th>
@@ -295,32 +346,34 @@ export default function ResultsPage({ params }: PageProps) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {pouleRankings.map((fencer, idx) => {
-                          const rank = fencer.pouleRank ?? idx + 1
+                        {pouleRankings.map((participant, idx) => {
+                          const rank = participant.pouleRank ?? idx + 1
                           const isEliminated = category.status !== 'poule' && rank > qualifiedCount
                           return (
-                            <tr key={fencer.id} className={isEliminated ? 'bg-red-100' : ''}>
+                            <tr key={participant.id} className={isEliminated ? 'bg-red-100' : ''}>
                               <td className={`px-4 py-3 text-sm font-bold ${isEliminated ? 'text-red-700' : 'text-gray-900'}`}>
                                 {rank}
-                                {isEliminated && <span className="ml-2 text-xs font-normal text-red-600">(淘汰)</span>}
+                                {isEliminated && (
+                                  <span className="ml-2 text-xs font-normal text-red-600">(淘汰)</span>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                {fencer.name}
+                                {participant.name}
                               </td>
                               <td className="px-4 py-3 text-sm text-center text-gray-600">
-                                {formatWinRate(fencer.winRate)}
+                                {formatWinRate(participant.winRate)}
                               </td>
                               <td className="px-4 py-3 text-sm text-center text-gray-600">
-                                {fencer.touchesScored}
+                                {participant.touchesScored}
                               </td>
                               <td className="px-4 py-3 text-sm text-center text-gray-600">
-                                {fencer.touchesReceived}
+                                {participant.touchesReceived}
                               </td>
                               <td className={`px-4 py-3 text-sm text-center font-medium ${
-                                fencer.indicator > 0 ? 'text-green-600' :
-                                fencer.indicator < 0 ? 'text-red-600' : 'text-gray-600'
+                                participant.indicator > 0 ? 'text-green-600' :
+                                participant.indicator < 0 ? 'text-red-600' : 'text-gray-600'
                               }`}>
-                                {formatIndicator(fencer.indicator)}
+                                {formatIndicator(participant.indicator)}
                               </td>
                             </tr>
                           )
@@ -334,25 +387,25 @@ export default function ResultsPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* 淘汰賽 */}
+        {/* ── 淘汰賽 tab ── */}
         {activeTab === 'bracket' && (
           <Card>
             <CardContent className="pt-6">
               {category.bracket ? (
                 <BracketTree
-                  matches={category.bracket.matches}
+                  matches={formattedMatches}
+                  competitionType={category.competitionType}
                   isAdmin={false}
+                  onMatchUpdate={fetchCategory}
                 />
               ) : (
-                <div className="text-center text-gray-500 py-8">
-                  尚未設置淘汰賽
-                </div>
+                <div className="text-center text-gray-500 py-12">尚未開始淘汰賽</div>
               )}
             </CardContent>
           </Card>
         )}
 
-        {/* 排名：只在賽事結束後顯示 */}
+        {/* ── 排名 tab ── */}
         {activeTab === 'rankings' && category.status === 'finished' && (
           <Card>
             <CardHeader>
@@ -364,7 +417,7 @@ export default function ResultsPage({ params }: PageProps) {
                   <thead>
                     <tr className="border-b border-gray-200">
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">名次</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">選手</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">{entityLabel}</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽排名</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽勝率</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">預賽得分</th>
@@ -373,51 +426,50 @@ export default function ResultsPage({ params }: PageProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {rankings.map((fencer, idx) => {
-                      const displayRank = fencer.finalRank || fencer.seedRank || idx + 1
-                      return(
-                      <tr key={fencer.id} className={
-                        displayRank <= 3 ? 'bg-yellow-50' : 
-                        idx >= qualifiedCount ? 'bg-red-100' : 
-                        ''
-                      }>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`font-bold ${
-                            displayRank === 1 ? 'text-yellow-600' :
-                            displayRank === 2 ? 'text-gray-500' :
-                            displayRank === 3 ? 'text-amber-700' : 'text-gray-900'
-                          }`}>
-                            {fencer.finalRank || fencer.seedRank || idx + 1}
-                           {(fencer.finalRank || idx >= qualifiedCount) && (
-                            <span className="ml-1 text-xs text-green-600">
-                              (最終)
+                    {rankings.map((participant, idx) => {
+                      const displayRank = participant.finalRank || participant.seedRank || idx + 1
+                      return (
+                        <tr
+                          key={participant.id}
+                          className={
+                            displayRank <= 3 ? 'bg-yellow-50' :
+                            idx >= qualifiedCount ? 'bg-red-100' : ''
+                          }
+                        >
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`font-bold ${
+                              displayRank === 1 ? 'text-yellow-600' :
+                              displayRank === 2 ? 'text-gray-500' :
+                              displayRank === 3 ? 'text-amber-700' : 'text-gray-900'
+                            }`}>
+                              {displayRank}
+                              {(participant.finalRank || idx >= qualifiedCount) && (
+                                <span className="ml-1 text-xs text-green-600">(最終)</span>
+                              )}
                             </span>
-                          )}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center text-gray-900">
-                          {fencer.name}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center text-gray-900">
-                          {fencer.pouleRank ?? '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center text-gray-600">
-                          {formatWinRate(fencer.winRate)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center text-gray-600">
-                          {fencer.touchesScored}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center text-gray-600">
-                          {fencer.touchesReceived}
-                        </td>
-                        <td className={`px-4 py-3 text-sm text-center font-medium ${
-                          fencer.indicator > 0 ? 'text-green-600' :
-                          fencer.indicator < 0 ? 'text-red-600' : 'text-gray-600'
-                        }`}>
-                          {formatIndicator(fencer.indicator)}
-                        </td>
-                      </tr>)
-                })}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-900">{participant.name}</td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-900">
+                            {participant.pouleRank ?? '-'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-600">
+                            {formatWinRate(participant.winRate)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-600">
+                            {participant.touchesScored}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-600">
+                            {participant.touchesReceived}
+                          </td>
+                          <td className={`px-4 py-3 text-sm text-center font-medium ${
+                            participant.indicator > 0 ? 'text-green-600' :
+                            participant.indicator < 0 ? 'text-red-600' : 'text-gray-600'
+                          }`}>
+                            {formatIndicator(participant.indicator)}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

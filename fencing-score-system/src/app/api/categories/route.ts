@@ -2,12 +2,19 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 // 獲取所有組別
 export async function GET() {
   try {
     const categories = await prisma.category.findMany({
       include: {
         fencers: true,
+        teams: {
+          include: {
+            members: true
+          }
+        },
         _count: {
           select: { fencers: true }
         }
@@ -39,7 +46,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const { name } = await request.json()
+    const { name, competitionType } = await request.json()
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json(
@@ -49,7 +56,10 @@ export async function POST(request: Request) {
     }
 
     const category = await prisma.category.create({
-      data: { name: name.trim() }
+      data: { 
+        name: name.trim(),
+        competitionType: competitionType || 'INDIVIDUAL'
+      }
     })
 
     return NextResponse.json({

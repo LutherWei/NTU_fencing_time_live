@@ -18,16 +18,21 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const { matchId } = await params
-    const { score1, score2 } = await request.json()
+    const { score1, score2, isTeamMatch } = await request.json()
 
     if (typeof score1 !== 'number' || typeof score2 !== 'number') {
       return NextResponse.json({ success: false, error: '請輸入有效分數' }, { status: 400 })
     }
 
+    // 根據比賽類型決定要 include 的關聯
+    const includeRelation = isTeamMatch 
+      ? { team1: true, team2: true, bracket: true }
+      : { fencer1: true, fencer2: true, bracket: true };
+
     // 獲取比賽資訊
     const match = await prisma.eliminationMatch.findUnique({
       where: { id: matchId },
-      include: { fencer1: true, fencer2: true, bracket: true }
+      include: includeRelation
     })
 
     if (!match) {
@@ -101,39 +106,55 @@ export async function PUT(request: Request, { params }: RouteParams) {
       )
     }
 
-    // 先記錄本場比賽開始前，兩位選手當下的 seedRank，作為此 match 的快照
-    const fencer1SeedAtMatch = match.fencer1?.seedRank ?? null
-    const fencer2SeedAtMatch = match.fencer2?.seedRank ?? null
+    const participant1 = isTeamMatch ? match.team1 : match.fencer1;
+    const participant2 = isTeamMatch ? match.team2 : match.fencer2;
+    const participant1Id = isTeamMatch ? match.team1Id : match.fencer1Id;
+    const participant2Id = isTeamMatch ? match.team2Id : match.fencer2Id;
+
+    // 先記錄本場比賽開始前，兩位選手/隊伍當下的 seedRank，作為此 match 的快照
+    const participant1SeedAtMatch = participant1?.seedRank ?? null
+    const participant2SeedAtMatch = participant2?.seedRank ?? null
 
     // 確定贏家與輸家
-    const isFencer1Winner = score1 > score2
-    const winnerId = isFencer1Winner ? match.fencer1Id : match.fencer2Id
-    const loserId = isFencer1Winner ? match.fencer2Id : match.fencer1Id
+    const isParticipant1Winner = score1 > score2
+    const winnerId = isParticipant1Winner ? participant1Id : participant2Id
+    const loserId = isParticipant1Winner ? participant2Id : participant1Id
 
     let calculatedLoserSeed: number | null = null
     let newWinnerSeed: number | null = null
     let newLoserSeed: number | null = null
 
     // 檢查並更新 seedRank
-    if (match.fencer1 && match.fencer2 && match.fencer1.seedRank != null && match.fencer2.seedRank != null) {
-      const winnerSeedRank = isFencer1Winner ? match.fencer1.seedRank : match.fencer2.seedRank
-      const loserSeedRank = isFencer1Winner ? match.fencer2.seedRank : match.fencer1.seedRank
+    if (participant1 && participant2 && participant1.seedRank != null && participant2.seedRank != null) {
+      const winnerSeedRank = isParticipant1Winner ? participant1.seedRank : participant2.seedRank
+      const loserSeedRank = isParticipant1Winner ? participant2.seedRank : participant1.seedRank
   
       newWinnerSeed = Math.min(winnerSeedRank, loserSeedRank) // 贏家取較好的種子
       newLoserSeed = Math.max(winnerSeedRank, loserSeedRank) // 輸家取較差的種子
       
       calculatedLoserSeed = newLoserSeed // 紀錄敗者應該拿到的 seedRank
-      const winner = isFencer1Winner ? match.fencer1 : match.fencer2
-      const loser = isFencer1Winner ? match.fencer2 : match.fencer1
+      const winner = isParticipant1Winner ? participant1 : participant2
+      const loser = isParticipant1Winner ? participant2 : participant1
 
-      await prisma.fencer.update({
-        where: { id: winner.id },
-        data: { seedRank: newWinnerSeed }
-      })
-      await prisma.fencer.update({
-        where: { id: loser.id },
-        data: { seedRank: newLoserSeed }
-      })
+      if (isTeamMatch) {
+        await prisma.team.update({
+          where: { id: winner.id },
+          data: { seedRank: newWinnerSeed }
+        })
+        await prisma.team.update({
+          where: { id: loser.id },
+          data: { seedRank: newLoserSeed }
+        })
+      } else {
+        await prisma.fencer.update({
+          where: { id: winner.id },
+          data: { seedRank: newWinnerSeed }
+        })
+        await prisma.fencer.update({
+          where: { id: loser.id },
+          data: { seedRank: newLoserSeed }
+        })
+      }
     }
 
     // 3. 更新當前比賽狀態
@@ -142,11 +163,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
       data: {
         score1,
         score2,
-        winnerId,
+        winnerId: isTeamMatch ? undefined : winnerId,
+        winnerTeamId: isTeamMatch ? winnerId : undefined,
         completed: true,
-        // 把本場比賽開打當下兩位選手的 seedRank 存成快照
-        fencer1SeedRank: fencer1SeedAtMatch,
-        fencer2SeedRank: fencer2SeedAtMatch
+        // 把本場比賽開打當下兩位選手/隊伍的 seedRank 存成快照
+        participant1SeedRank: participant1SeedAtMatch,
+        participant2SeedRank: participant2SeedAtMatch
       }
     })
 
@@ -161,18 +183,19 @@ export async function PUT(request: Request, { params }: RouteParams) {
       })
 
       if (nextMatch && winnerId) {
+        const updateData = isFirstFencer
+          ? {
+              [isTeamMatch ? 'team1Id' : 'fencer1Id']: winnerId,
+              participant1SeedRank: newWinnerSeed ?? undefined
+            }
+          : {
+              [isTeamMatch ? 'team2Id' : 'fencer2Id']: winnerId,
+              participant2SeedRank: newWinnerSeed ?? undefined
+            };
+
         await prisma.eliminationMatch.update({
           where: { id: nextMatch.id },
-          data: isFirstFencer
-            ? {
-                fencer1Id: winnerId,
-                // 把晉級到下一輪時的 seedRank 也一併記錄在下一場 match 上
-                fencer1SeedRank: newWinnerSeed ?? undefined
-              }
-            : {
-                fencer2Id: winnerId,
-                fencer2SeedRank: newWinnerSeed ?? undefined
-              }
+          data: updateData
         })
       }
 
@@ -185,30 +208,40 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
           if (thirdPlaceMatch) {
             const isFirst = match.position === 0
+            const updateData = isFirst
+              ? {
+                  [isTeamMatch ? 'team1Id' : 'fencer1Id']: loserId,
+                  participant1SeedRank: newLoserSeed ?? undefined
+                }
+              : {
+                  [isTeamMatch ? 'team2Id' : 'fencer2Id']: loserId,
+                  participant2SeedRank: newLoserSeed ?? undefined
+                };
             await prisma.eliminationMatch.update({
               where: { id: thirdPlaceMatch.id },
-              data: isFirst
-                ? {
-                    fencer1Id: loserId,
-                    fencer1SeedRank: newLoserSeed ?? undefined
-                  }
-                : {
-                    fencer2Id: loserId,
-                    fencer2SeedRank: newLoserSeed ?? undefined
-                  }
+              data: updateData
             })
           }
         }else{
           // 沒有三四名戰的話，直接把輸家 finalRank 設為 3
-          await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 3 } })
+          if (isTeamMatch) {
+            await prisma.team.update({ where: { id: loserId }, data: { finalRank: 3 } })
+          } else {
+            await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 3 } })
+          }
         }
       }
     }
 
     // 5. 計算並寫入 Final Rank (最終名次)
     if (match.round === 1 && !match.isThirdPlace) { // 冠亞賽結束
-      await prisma.fencer.update({ where: { id: winnerId! }, data: { finalRank: 1 } })
-      if (loserId) await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 2 } })
+      if (isTeamMatch) {
+        await prisma.team.update({ where: { id: winnerId! }, data: { finalRank: 1 } })
+        if (loserId) await prisma.team.update({ where: { id: loserId }, data: { finalRank: 2 } })
+      } else {
+        await prisma.fencer.update({ where: { id: winnerId! }, data: { finalRank: 1 } })
+        if (loserId) await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 2 } })
+      }
 
       // 檢查是否可以將整個 Category 設為 finished
       if (!match.bracket.hasThirdPlace) {
@@ -226,8 +259,13 @@ export async function PUT(request: Request, { params }: RouteParams) {
       }
       
     } else if (match.isThirdPlace) { // 三四名戰結束
-      await prisma.fencer.update({ where: { id: winnerId! }, data: { finalRank: 3 } })
-      if (loserId) await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 4 } })
+      if (isTeamMatch) {
+        await prisma.team.update({ where: { id: winnerId! }, data: { finalRank: 3 } })
+        if (loserId) await prisma.team.update({ where: { id: loserId }, data: { finalRank: 4 } })
+      } else {
+        await prisma.fencer.update({ where: { id: winnerId! }, data: { finalRank: 3 } })
+        if (loserId) await prisma.fencer.update({ where: { id: loserId }, data: { finalRank: 4 } })
+      }
       
       // 檢查冠亞賽是否也打完了
       const finalMatch = await prisma.eliminationMatch.findFirst({
@@ -251,17 +289,23 @@ export async function PUT(request: Request, { params }: RouteParams) {
             isThirdPlace: false,
             completed: true
           },
-          include: {
-            fencer1: true,
-            fencer2: true
+          // 永遠載入所有可能的關聯，避免類型錯誤
+          include: { 
+            team1: true, 
+            team2: true, 
+            fencer1: true, 
+            fencer2: true 
           }
         })
 
         // 整理所有本輪被淘汰的人，以及他們目前的 seedRank (即此輪配給到的 max(seed1, seed2))
         const losersInRound = completedMatchesInRound
-          .filter(m => m.winnerId != null)
+          .filter(m => (isTeamMatch ? m.winnerTeamId : m.winnerId) != null)
           .map(m => {
-            const loser = m.winnerId === m.fencer1Id ? m.fencer2 : m.fencer1
+            const winnerParticipantId = isTeamMatch ? m.winnerTeamId : m.winnerId;
+            const loser = winnerParticipantId === (isTeamMatch ? m.team1Id : m.fencer1Id) 
+              ? (isTeamMatch ? m.team2 : m.fencer2) // <--- 改為回傳完整的物件
+              : (isTeamMatch ? m.team1 : m.fencer1); // <--- 改為回傳完整的物件
             return loser
           })
           .filter((l): l is NonNullable<typeof l> => l !== null && l.seedRank !== null)
@@ -286,16 +330,26 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
         // 將重新排序後名次較好（初賽表現較佳）的輸家，分配較小（較好）的 seedRank 與 finalRank
         for (let i = 0; i < sortedLosers.length; i++) {
-          const fencerToUpdate = sortedLosers[i]
+          const participantToUpdate = sortedLosers[i]
           const assignedFinalRank = availableSlots[i]
           if (assignedFinalRank != null) {
-            await prisma.fencer.update({
-              where: { id: fencerToUpdate.id },
-              data: {
-                seedRank: assignedFinalRank,
-                finalRank: assignedFinalRank
-              }
-            })
+            if (isTeamMatch) {
+              await prisma.team.update({
+                where: { id: participantToUpdate.id },
+                data: {
+                  seedRank: assignedFinalRank,
+                  finalRank: assignedFinalRank
+                }
+              })
+            } else {
+              await prisma.fencer.update({
+                where: { id: participantToUpdate.id },
+                data: {
+                  seedRank: assignedFinalRank,
+                  finalRank: assignedFinalRank
+                }
+              })
+            }
           }
         }
       }

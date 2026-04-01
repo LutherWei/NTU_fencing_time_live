@@ -12,26 +12,26 @@ export interface FencerStats {
 }
 
 export interface PouleMatchResult {
-  fencer1Id: string
-  fencer2Id: string
+  participant1Id: string
+  participant2Id: string
   score1: number
   score2: number
 }
 
 /**
  * 計算小組賽得分矩陣的統計數據
- * @param fencerIds 選手ID陣列
+ * @param participantIds 選手/隊伍ID陣列
  * @param matches 比賽結果
- * @returns 每位選手的統計數據
+ * @returns 每位選手/隊伍的統計數據
  */
 export function calculatePouleStats(
-  fencerIds: string[],
+  participantIds: string[],
   matches: PouleMatchResult[]
 ): Map<string, Omit<FencerStats, 'id' | 'name'>> {
   const stats = new Map<string, Omit<FencerStats, 'id' | 'name'>>()
   
   // 初始化每位選手的統計
-  for (const id of fencerIds) {
+  for (const id of participantIds) {
     stats.set(id, {
       victories: 0,
       defeats: 0,
@@ -44,8 +44,8 @@ export function calculatePouleStats(
   
   // 處理每場比賽
   for (const match of matches) {
-    const stat1 = stats.get(match.fencer1Id)
-    const stat2 = stats.get(match.fencer2Id)
+    const stat1 = stats.get(match.participant1Id)
+    const stat2 = stats.get(match.participant2Id)
     
     if (!stat1 || !stat2) continue
     
@@ -146,9 +146,9 @@ export function isVictory(score: number): boolean {
  * 格式化分數顯示
  * 5分顯示為V，其他顯示數字
  */
-export function formatPouleScore(score: number, isWinner: boolean): string {
-  if (score >= 5 && isWinner) {
-    return 'V'
+export function formatPouleScore(score: number, opponentScore: number): string {
+  if (score > opponentScore) {
+    return `V${score}`
   }
   return score.toString()
 }

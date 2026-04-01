@@ -2,40 +2,16 @@
 
 import { cn } from '@/lib/utils'
 import { getRoundName } from '@/lib/bracket-gen'
-import { MatchNode } from './MatchNode'
-
-interface Fencer {
-  id: string
-  name: string
-  seedRank: number | null
-}
-
-interface EliminationMatch {
-  id: string
-  round: number
-  position: number
-  fencer1Id: string | null
-  fencer2Id: string | null
-  fencer1: Fencer | null
-  fencer2: Fencer | null
-   fencer1SeedRank: number | null
-   fencer2SeedRank: number | null
-  score1: number | null
-  score2: number | null
-  winnerId: string | null
-  winner: Fencer | null
-  isBye: boolean
-  isThirdPlace: boolean
-  completed: boolean
-}
+import { MatchNode, EliminationMatch } from './MatchNode'
 
 interface BracketTreeProps {
   matches: EliminationMatch[]
+  competitionType: 'INDIVIDUAL' | 'TEAM'
   isAdmin?: boolean
   onMatchUpdate?: () => void
 }
 
-export function BracketTree({ matches, isAdmin = false, onMatchUpdate }: BracketTreeProps) {
+export function BracketTree({ matches, competitionType, isAdmin = false, onMatchUpdate }: BracketTreeProps) {
   // 按輪次分組
   const rounds = [...new Set(matches.filter(m => !m.isThirdPlace).map(m => m.round))].sort((a, b) => b - a)
   const thirdPlaceMatch = matches.find(m => m.isThirdPlace)
@@ -83,6 +59,7 @@ export function BracketTree({ matches, isAdmin = false, onMatchUpdate }: Bracket
                   <MatchNode
                     key={match.id}
                     match={match}
+                    competitionType={competitionType}
                     isAdmin={isAdmin}
                     onUpdate={onMatchUpdate}
                   />
@@ -101,6 +78,7 @@ export function BracketTree({ matches, isAdmin = false, onMatchUpdate }: Bracket
             <div className="flex items-center justify-center flex-1">
               <MatchNode
                 match={thirdPlaceMatch}
+                competitionType={competitionType}
                 isAdmin={isAdmin}
                 onUpdate={onMatchUpdate}
               />
