@@ -13,16 +13,13 @@ function TeamMatchDetailContent({ matchId }: { matchId: string; }) {
   const searchParams = useSearchParams()
   const isPouleMatch = searchParams.get('isPouleMatch') === 'true'
   const pouleId = searchParams.get('pouleId')
-  const categoryId = searchParams.get('categoryId')
-  console.log('categoryId:', categoryId) // 看看是什麼
+  
 
   return (
     <TeamMatchDetailModal
       matchId={matchId}
       pouleId={pouleId || undefined}
-      categoryId={categoryId || undefined}
       isPouleMatch={isPouleMatch}
-      isOpen={true}
       onClose={() => router.back()}
       onUpdate={() => router.back()}
     />

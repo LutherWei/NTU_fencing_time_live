@@ -6,6 +6,8 @@ export interface BracketMatch {
   position: number   // 該輪中的位置 (0-indexed)
   fencer1Id: string | null
   fencer2Id: string | null
+  team1Id: string | null
+  team2Id: string | null
   fencer1Seed: number | null
   fencer2Seed: number | null
   score1: number | null
@@ -14,12 +16,13 @@ export interface BracketMatch {
   completed: boolean
   isBye: boolean
   isThirdPlace: boolean
-  prevMatch1Id: string | null  // 上一輪的比賽1（產生fencer1）
-  prevMatch2Id: string | null  // 上一輪的比賽2（產生fencer2）
+  prevMatch1Id: string | null  // 上一輪的比賽1（產生fencer1/team1）
+  prevMatch2Id: string | null  // 上一輪的比賽2（產生fencer2/team2）
 }
 
 export interface SeedInfo {
-  fencerId: string
+  fencerId?: string
+  teamId?: string
   seed: number
 }
 
@@ -80,25 +83,27 @@ export function generateMaximumEntropy(bracketSize: number): [number, number][] 
 
 /**
  * 生成完整的淘汰賽樹狀結構
- * @param fencers 晉級選手（已按種子排序）
+ * @param participants 晉級選手/隊伍（已按種子排序）
  * @param hasThirdPlace 是否有三四名決定戰
+ * @param isTeamMatch 是否為團體賽
  * @returns 所有比賽的結構
  */
 export function generateBracket(
-  fencers: SeedInfo[],
-  hasThirdPlace: boolean = false
+  participants: SeedInfo[],
+  hasThirdPlace: boolean = false,
+  isTeamMatch: boolean = false
 ): BracketMatch[] {
-  const bracketSize = Math.pow(2, Math.ceil(Math.log2(fencers.length)))
+  const bracketSize = Math.pow(2, Math.ceil(Math.log2(participants.length)))
   const totalRounds = Math.log2(bracketSize)
   const matches: BracketMatch[] = []
   
   // 生成第一輪的配對（最大亂度）
   const firstRoundPairings = generateMaximumEntropy(bracketSize)
   
-  // 建立種子到選手的映射
-  const seedToFencer = new Map<number, SeedInfo>()
-  fencers.forEach((f, index) => {
-    seedToFencer.set(index + 1, f)
+  // 建立種子到參與者的映射
+  const seedToParticipant = new Map<number, SeedInfo>()
+  participants.forEach((p, index) => {
+    seedToParticipant.set(index + 1, p)
   })
   
   let matchId = 0
@@ -107,28 +112,46 @@ export function generateBracket(
   const firstRoundSize = bracketSize / 2  // 第一輪的比賽場數 = 參賽人數 / 2
   for (let pos = 0; pos < firstRoundSize; pos++) {
     const [seed1, seed2] = firstRoundPairings[pos]
-    const fencer1 = seedToFencer.get(seed1)
-    const fencer2 = seedToFencer.get(seed2)
+    const participant1 = seedToParticipant.get(seed1)
+    const participant2 = seedToParticipant.get(seed2)
     
-    const isBye = !fencer1 || !fencer2
+    const isBye = !participant1 || !participant2
+    const id1 = isTeamMatch ? participant1?.teamId : participant1?.fencerId
+    const id2 = isTeamMatch ? participant2?.teamId : participant2?.fencerId
     
-    matches.push({
+    const baseMatch = {
       id: `match-${matchId++}`,
       round: firstRoundSize,  // 修正：第一輪的場數（例如 8人→4場，round=4）
       position: pos,
-      fencer1Id: fencer1?.fencerId || null,
-      fencer2Id: fencer2?.fencerId || null,
-      fencer1Seed: fencer1 ? seed1 : null,
-      fencer2Seed: fencer2 ? seed2 : null,
+      fencer1Seed: participant1 ? seed1 : null,
+      fencer2Seed: participant2 ? seed2 : null,
       score1: null,
       score2: null,
-      winnerId: isBye ? (fencer1?.fencerId || fencer2?.fencerId || null) : null,
+      winnerId: isBye ? (id1 || id2 || null) : null,
       completed: isBye,
       isBye,
       isThirdPlace: false,
       prevMatch1Id: null,
       prevMatch2Id: null
-    })
+    }
+
+    if (isTeamMatch) {
+      matches.push({
+        ...baseMatch,
+        fencer1Id: null,
+        fencer2Id: null,
+        team1Id: id1 || null,
+        team2Id: id2 || null
+      } as BracketMatch)
+    } else {
+      matches.push({
+        ...baseMatch,
+        fencer1Id: id1 || null,
+        fencer2Id: id2 || null,
+        team1Id: null,
+        team2Id: null
+      } as BracketMatch)
+    }
   }
   
   // 生成後續輪次
@@ -145,15 +168,13 @@ export function generateBracket(
       const prevMatch2 = matches[prevRoundStart + 1]
       
       // 檢查前一輪比賽是否已完成，如果是就直接晉級
-      const fencer1Id = prevMatch1?.completed && prevMatch1.winnerId ? prevMatch1.winnerId : null
-      const fencer2Id = prevMatch2?.completed && prevMatch2.winnerId ? prevMatch2.winnerId : null
+      const id1 = prevMatch1?.completed && prevMatch1.winnerId ? prevMatch1.winnerId : null
+      const id2 = prevMatch2?.completed && prevMatch2.winnerId ? prevMatch2.winnerId : null
       
-      matches.push({
+      const baseMatch = {
         id: `match-${matchId++}`,
         round: 1,
         position: 0,
-        fencer1Id,
-        fencer2Id,
         fencer1Seed: null,
         fencer2Seed: null,
         score1: null,
@@ -164,7 +185,25 @@ export function generateBracket(
         isThirdPlace: false,
         prevMatch1Id: prevMatch1?.id || null,
         prevMatch2Id: prevMatch2?.id || null
-      })
+      }
+
+      if (isTeamMatch) {
+        matches.push({
+          ...baseMatch,
+          fencer1Id: null,
+          fencer2Id: null,
+          team1Id: id1,
+          team2Id: id2
+        } as BracketMatch)
+      } else {
+        matches.push({
+          ...baseMatch,
+          fencer1Id: id1,
+          fencer2Id: id2,
+          team1Id: null,
+          team2Id: null
+        } as BracketMatch)
+      }
       break
     }
     
@@ -177,15 +216,13 @@ export function generateBracket(
       const prevMatch2 = matches[prevMatch2Idx]
       
       // 檢查前一輪比賽是否已完成（Bye），如果是就直接晉級
-      const fencer1Id = prevMatch1?.completed && prevMatch1.winnerId ? prevMatch1.winnerId : null
-      const fencer2Id = prevMatch2?.completed && prevMatch2.winnerId ? prevMatch2.winnerId : null
+      const id1 = prevMatch1?.completed && prevMatch1.winnerId ? prevMatch1.winnerId : null
+      const id2 = prevMatch2?.completed && prevMatch2.winnerId ? prevMatch2.winnerId : null
       
-      matches.push({
+      const baseMatch = {
         id: `match-${matchId++}`,
         round: currentRound,
         position: pos,
-        fencer1Id,
-        fencer2Id,
         fencer1Seed: null,
         fencer2Seed: null,
         score1: null,
@@ -196,7 +233,25 @@ export function generateBracket(
         isThirdPlace: false,
         prevMatch1Id: prevMatch1?.id || null,
         prevMatch2Id: prevMatch2?.id || null
-      })
+      }
+
+      if (isTeamMatch) {
+        matches.push({
+          ...baseMatch,
+          fencer1Id: null,
+          fencer2Id: null,
+          team1Id: id1,
+          team2Id: id2
+        } as BracketMatch)
+      } else {
+        matches.push({
+          ...baseMatch,
+          fencer1Id: id1,
+          fencer2Id: id2,
+          team1Id: null,
+          team2Id: null
+        } as BracketMatch)
+      }
     }
     
     prevRoundStart += prevRoundSize
@@ -211,12 +266,10 @@ export function generateBracket(
     const semifinalMatches = matches.filter(m => m.round === 2)
     
     if (semifinalMatches.length === 2) {
-      matches.push({
+      const baseMatch = {
         id: `match-${matchId++}`,
         round: 1,
         position: 1,  // position 1 表示三四名決定戰
-        fencer1Id: null,
-        fencer2Id: null,
         fencer1Seed: null,
         fencer2Seed: null,
         score1: null,
@@ -227,7 +280,25 @@ export function generateBracket(
         isThirdPlace: true,
         prevMatch1Id: semifinalMatches[0].id,
         prevMatch2Id: semifinalMatches[1].id
-      })
+      }
+
+      if (isTeamMatch) {
+        matches.push({
+          ...baseMatch,
+          fencer1Id: null,
+          fencer2Id: null,
+          team1Id: null,
+          team2Id: null
+        } as BracketMatch)
+      } else {
+        matches.push({
+          ...baseMatch,
+          fencer1Id: null,
+          fencer2Id: null,
+          team1Id: null,
+          team2Id: null
+        } as BracketMatch)
+      }
     }
   }
   

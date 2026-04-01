@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { formatPouleScore, formatIndicator, formatWinRate } from '@/lib/fencing-math'
 import { Modal } from '@/components/ui/Modal'
@@ -64,6 +65,7 @@ export function PouleMatrix({
   onScoreUpdate,
   onFencerDelete
 }: PouleMatrixProps) {
+  const router = useRouter()
   const [editingCell, setEditingCell] = useState<{
     rowId: string
     colId: string
@@ -199,33 +201,22 @@ export function PouleMatrix({
     }
   }
 
+  const handleSetDetail = (e: React.MouseEvent, match: PouleMatch) => {
+    e.stopPropagation();
+    
+    console.log('🔍 handleOpenDetail called:', { competitionType, isAdmin, completed: match.completed, matchId: match.id })
+    
+    // 團體賽 & 個人賽都用 overlay modal
+    setDetailingMatch(match);
+  }
+
   const handleOpenDetail = (e: React.MouseEvent, match: PouleMatch) => {
     e.stopPropagation();
     
     console.log('🔍 handleOpenDetail called:', { competitionType, isAdmin, completed: match.completed, matchId: match.id })
     
-    // 團體賽：導向到專頁登記系統
-    if (competitionType === 'TEAM') {
-      // Admin + 進行中的比賽 → 編輯頁面
-      if (isAdmin && !match.completed) {
-        console.log('📖 Opening edit page:', `/admin/team-match-detail/${match.id}`)
-        window.open(`/admin/team-match-detail/${match.id}?isPouleMatch=true&pouleId=${pouleId}`, '_blank')
-      } else {
-        // 非 Admin 或已完成 → 只讀頁面
-        console.log('📖 Opening read-only page')
-        window.open(`/match-detail/${match.id}?isPouleMatch=true`, '_blank')
-      }
-      return
-    }
-    
-    // 個人賽：保持原來的 Modal 邏輯
-    if (!isAdmin || match.completed) {
-      window.open(`/match-detail/${match.id}?isPouleMatch=true`, '_blank')
-      return
-    }
-    
-    // 個人賽 Admin 使用 Modal
-    setDetailingMatch(match);
+    //直接導到match-detail/[matchID]/page.tsx
+    router.push(`/match-detail/${match.id}?isPouleMatch=true&pouleId=${pouleId}`)
   }
 
   return (
@@ -277,25 +268,61 @@ export function PouleMatrix({
                       ''
                     ) : (
                       <div className="flex flex-col items-center justify-center">
-                        {result ? (
-                          <>
-                            <span className="font-bold text-lg">
-                              {formatPouleScore(result.score, result.opponentScore)}
-                            </span>
-                            {competitionType === 'TEAM' && result.matchId && (
-                              <Button variant="link" size="sm" className="mt-1 h-auto p-0 text-xs" onClick={(e) => handleOpenDetail(e, matchMap.get(`${rowParticipant.id}-${colParticipant.id}`)!)}>
-                                [比賽詳情]
-                              </Button>
-                            )}
-                          </>
-                        ) : (
-                          // 未登記分數的比賽：Team 顯示按鈕，Individual 顯示登記提示
-                          competitionType === 'TEAM' ? (
-                            isAdmin && (
-                              <Button variant="link" size="sm" className="h-auto p-0 text-xs text-blue-600" onClick={(e) => handleOpenDetail(e, matchMap.get(`${rowParticipant.id}-${colParticipant.id}`)!)}>
+                        {/* 團體賽：根據 isAdmin 和 completed 顯示不同內容 */}
+                        {competitionType === 'TEAM' ? (
+                          isAdmin ? (
+                            result ? (
+                              // Admin + 已完成：顯示分數 + [比賽詳情]
+                              <>
+                                <span className="font-bold text-lg">
+                                  {formatPouleScore(result.score, result.opponentScore)}
+                                </span>
+                                <Button 
+                                  variant="link" 
+                                  size="sm" 
+                                  className="mt-1 h-auto p-0 text-xs" 
+                                  onClick={(e) => handleSetDetail(e, matchMap.get(`${rowParticipant.id}-${colParticipant.id}`)!)}
+                                >
+                                  [比賽詳情]
+                                </Button>
+                              </>
+                            ) : (
+                              // Admin + 未完成：顯示 [開始登記]
+                              <Button 
+                                variant="link" 
+                                size="sm" 
+                                className="h-auto p-0 text-xs text-blue-600" 
+                                onClick={(e) => handleSetDetail(e, matchMap.get(`${rowParticipant.id}-${colParticipant.id}`)!)}
+                              >
                                 [開始登記]
                               </Button>
                             )
+                          ) : (
+                            result ? (
+                              // 非Admin + 已完成：顯示分數 + [查看詳情]
+                              <>
+                                <span className="font-bold text-lg">
+                                  {formatPouleScore(result.score, result.opponentScore)}
+                                </span>
+                                <Button 
+                                  variant="link" 
+                                  size="sm" 
+                                  className="mt-1 h-auto p-0 text-xs" 
+                                  onClick={(e) => handleOpenDetail(e, matchMap.get(`${rowParticipant.id}-${colParticipant.id}`)!)}
+                                >
+                                  [查看詳情]
+                                </Button>
+                              </>
+                            ) : null
+                          )
+                        ) : (
+                          // 個人賽：保持原有邏輯
+                          result ? (
+                            <>
+                              <span className="font-bold text-lg">
+                                {formatPouleScore(result.score, result.opponentScore)}
+                              </span>
+                            </>
                           ) : (
                             isAdmin ? <span className="text-gray-400 text-sm hover:text-gray-600">登記分數</span> : ''
                           )
@@ -359,19 +386,6 @@ export function PouleMatrix({
             </div>
           </div>
         </Modal>
-      )}
-
-      {detailingMatch && (
-        <TeamMatchDetailModal
-          matchId={detailingMatch.id}
-          pouleId={pouleId}
-          isPouleMatch={true}
-          isOpen={!!detailingMatch}
-          onClose={() => setDetailingMatch(null)}
-          onUpdate={() => {
-            onScoreUpdate?.();
-          }}
-        />
       )}
     </div>
   )

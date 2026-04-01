@@ -61,6 +61,21 @@ export async function POST(
       }
     })
 
+    // 重置所有隊伍的統計數據和 pouleId
+    await prisma.team.updateMany({
+      where: { categoryId },
+      data: {
+        pouleId: null,
+        victories: 0,
+        defeats: 0,
+        touchesScored: 0,
+        touchesReceived: 0,
+        indicator: 0,
+        winRate: 0,
+        seedRank: null
+      }
+    })
+
     // 將組別狀態改回檢錄
     await prisma.category.update({
       where: { id: categoryId },

@@ -1,7 +1,6 @@
 'use client'
-import Link from 'next/link'
+
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { ArrowLeft } from 'lucide-react'
@@ -38,7 +37,6 @@ interface Bout {
 interface TeamMatchDetailModalProps {
   matchId: string
   pouleId?: string
-  categoryId?: string
   isPouleMatch: boolean
   /** 全頁模式不需要此 prop（undefined / false 時為全頁；true 時套 overlay） */
   isOpen?: boolean
@@ -277,7 +275,7 @@ interface Step3Props {
   sideSwapped: boolean
   isSubmitting: boolean
   isSavingLock: boolean
-  categoryId?: string
+  lockedBoutIndex: number
   onScoreChange: (order: number, side: 'score1' | 'score2', value: string) => void
   onLockBout: (boutIndex: number) => void
   onSwapFencer: (boutOrder: number, fencerKey: 'fencer1Id' | 'fencer2Id', teamKey: 'team1' | 'team2', role: string, newFencerId: string) => void
@@ -287,14 +285,12 @@ interface Step3Props {
 }
 
 function Step3Scoreboard({
-  team1, team2, 
-  seq1, lineup1, lineup2, 
-  team1SubTarget, team2SubTarget,
-  bouts, sideSwapped, isSubmitting, isSavingLock, categoryId,
+  team1, team2, seq1, lineup1, lineup2, team1SubTarget, team2SubTarget,
+  bouts, sideSwapped, isSubmitting, isSavingLock, lockedBoutIndex,
   onScoreChange, onLockBout, onSwapFencer, onSwapSides, onSubmit, onClose,
 }: Step3Props) {
   const [errors, setErrors] = useState<Record<string, string>>({})
-
+  
   const allMembers = [...team1.members, ...team2.members]
   function fencerName(id: string) { return allMembers.find(m => m.id === id)?.name ?? id }
 
@@ -310,20 +306,16 @@ function Step3Scoreboard({
   const rightRole = (sched: typeof BOUT_SCHEDULE[number]) => sideSwapped ? sched.r1 : sched.r2
 
   const last = bouts[bouts.length - 1]
-  const leftTotal  = (sideSwapped ? last?.score2 : last?.score1) ?? 0
-  const rightTotal = (sideSwapped ? last?.score1 : last?.score2) ?? 0
+  const leftTotal  = (sideSwapped ? bouts[lockedBoutIndex]?.score2 : bouts[lockedBoutIndex]?.score1)   ?? 0
+  const rightTotal = (sideSwapped ? bouts[lockedBoutIndex]?.score1 : bouts[lockedBoutIndex]?.score2)   ?? 0
 
   function boutTs(i: number, key: 'score1' | 'score2'): number {
     return Math.max(bouts[i][key] - (i > 0 ? bouts[i - 1][key] : 0), 0)
   }
 
-  // 判斷某局是否已被鎖定（下一局存在且分數不全為 0）
+  // 判斷某局是否已被鎖定（根據 lockedBoutIndex）
   function isBoutLocked(boutIndex: number): boolean {
-    if (boutIndex < bouts.length - 1) {
-      const next = bouts[boutIndex + 1]
-      return next.score1 !== 0 || next.score2 !== 0
-    }
-    return false
+    return boutIndex <= lockedBoutIndex
   }
 
   // 判斷某局是否可以鎖定（兩側分數都有輸入，且無錯誤）
@@ -339,7 +331,7 @@ function Step3Scoreboard({
 
   function handleInput(order: number, key: 'score1' | 'score2', value: string) {
     const boutIndex = order - 1
-    if (isBoutLocked(boutIndex)) return
+    if (isBoutLocked(boutIndex) || lockedBoutIndex + 1 != boutIndex) return
 
     let raw = parseInt(value)
     if (isNaN(raw)) raw = 0
@@ -477,7 +469,7 @@ function Step3Scoreboard({
                       ) : (
                         <Input
                           type="number"
-                          value={lCum.toString()}
+                          value={lCum || ''}
                           onChange={e => handleInput(bout.order, leftKey, e.target.value)}
                           className={`w-14 text-center ${errors[lErrKey] ? 'border-red-400 ring-1 ring-red-300' : ''}`}
                         />
@@ -495,7 +487,7 @@ function Step3Scoreboard({
                       ) : (
                         <Input
                           type="number"
-                          value={rCum.toString()}
+                          value={rCum || ''}
                           onChange={e => handleInput(bout.order, rightKey, e.target.value)}
                           className={`w-14 text-center ${errors[rErrKey] ? 'border-red-400 ring-1 ring-red-300' : ''}`}
                         />
@@ -545,11 +537,9 @@ function Step3Scoreboard({
       </div>
 
       <div className="flex justify-between mt-4">
-        <Link href={`/admin/poules/${categoryId}`}>
-          <Button onClick={onSubmit} disabled={isSubmitting || hasErrors}>
-            {isSubmitting ? '儲存中...' : '儲存並更新總分'}
-          </Button>
-        </Link>
+        <Button onClick={onSubmit} disabled={isSubmitting || hasErrors}>
+          {isSubmitting ? '儲存中...' : '儲存並更新總分'}
+        </Button>
       </div>
     </div>
   )
@@ -560,13 +550,11 @@ function Step3Scoreboard({
 export function TeamMatchDetailModal({
   matchId,
   pouleId,
-  categoryId,
   isPouleMatch,
   isOpen,
   onClose,
   onUpdate,
 }: TeamMatchDetailModalProps) {
-  const router = useRouter()
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [team1, setTeam1] = useState<Team | null>(null)
   const [team2, setTeam2] = useState<Team | null>(null)
@@ -581,6 +569,7 @@ export function TeamMatchDetailModal({
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingLock, setIsSavingLock] = useState(false)
+  const [lockedBoutIndex, setLockedBoutIndex] = useState(-1) // 追蹤已鎖定的最高bout index
 
   // overlay 模式（isOpen 有被傳入）：isOpen===false 時不 render
   const isOverlayMode = isOpen !== undefined
@@ -592,6 +581,7 @@ export function TeamMatchDetailModal({
 
   useEffect(() => {
     setSideSwapped(false)
+    setLockedBoutIndex(-1)
     fetchDetails()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId])
@@ -600,11 +590,11 @@ export function TeamMatchDetailModal({
   useEffect(() => {
     if (isOverlayMode && isOpen) {
       setSideSwapped(false)
+      setLockedBoutIndex(-1)
       fetchDetails()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
-  
 
   function buildBoutsFromLineup(s1: SeqType, l1: Lineup, l2: Lineup, existingBouts?: Bout[]): Bout[] {
     const existing = new Map<number, Bout>((existingBouts ?? []).map(b => [b.order, b]))
@@ -620,7 +610,7 @@ export function TeamMatchDetailModal({
         cumScore2: prev?.score2 ?? 0,
       }
     })
-    return raw
+    return syncCumulative(raw)
   }
 
   async function fetchDetails() {
@@ -648,10 +638,21 @@ export function TeamMatchDetailModal({
         setLineup2(savedSetup.lineup2)
         setTeam1SubTarget(savedSetup.team1SubTarget || null)
         setTeam2SubTarget(savedSetup.team2SubTarget || null)
-        setBouts(existingBouts.length > 0
-          ? existingBouts
+        const finalBouts = existingBouts.length > 0
+          ? syncCumulative(existingBouts)
           : buildBoutsFromLineup(savedSetup.seq1, savedSetup.lineup1, savedSetup.lineup2)
-        )
+        setBouts(finalBouts)
+        
+        // 根據bouts數據恢復已鎖定的bout index
+        let highestLockedIndex = -1
+        for (let i = 0; i < finalBouts.length; i++) {
+          if (finalBouts[i].score1 > 0 || finalBouts[i].score2 > 0) {
+            highestLockedIndex = i
+          } else {
+            break // 遇到第一個未填充的局就停止
+          }
+        }
+        setLockedBoutIndex(highestLockedIndex)
         setStep(3)
       } else if (savedSetup?.seq1 && savedSetup?.seq2) {
         setSeq1(savedSetup.seq1)
@@ -672,52 +673,34 @@ export function TeamMatchDetailModal({
     }
   }
 
-  // ── 鎖定某局：自動存檔 + 即時更新大比分 ──────────────────────────────────
+  // ── 鎖定某局：存檔但不更新總分（總分等到 onSubmit 再更新） ──────────────────
   async function handleLockBout(boutIndex: number) {
     const currentBouts = bouts
     const lockedBout = currentBouts[boutIndex]
-    
-    // 立即更新前端：解鎖下一局，使得大比分能即時重新渲染
-    setBouts(prev => {
-      const next = [...prev]
-      if (boutIndex + 1 < next.length) {
-        next[boutIndex + 1] = {
-          ...next[boutIndex + 1],
-          score1: next[boutIndex + 1].score1 === 0 ? lockedBout.score1 : next[boutIndex + 1].score1,
-          score2: next[boutIndex + 1].score2 === 0 ? lockedBout.score2 : next[boutIndex + 1].score2,
-        }
-        
-      }
-      return next
-    })
-    
     setIsSavingLock(true)
     try {
-      // 1. 存 bouts 細節到後端
+      // 1. 存 bouts 細節
       await fetch(`/api/match-detail/${matchId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bouts: currentBouts }),
       })
 
-      // 2. 即時更新後端的主比分（用這局的累積分）
-      const currentSeq1 = seq1Ref.current
-      if (currentSeq1) {
-        const isTeam1Seq123 = currentSeq1 === '123'
-        const liveScore1 = isTeam1Seq123 ? lockedBout.score1 : lockedBout.score2
-        const liveScore2 = isTeam1Seq123 ? lockedBout.score2 : lockedBout.score1
-        const endpoint = isPouleMatch ? `/api/poules/${pouleId}/matches` : `/api/bracket/${matchId}`
-        const body = isPouleMatch
-          ? { matchId, score1: liveScore1, score2: liveScore2, isTeamMatch: true }
-          : { score1: liveScore1, score2: liveScore2, isTeamMatch: true }
-        await fetch(endpoint, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        })
-      }
+      // 2. 更新已鎖定的bout index
+      setLockedBoutIndex(boutIndex)
 
-      onUpdate()
+      // 3. 初始化下一局的分數為當前局的值（讓用戶繼續填）
+      setBouts(prev => {
+        const next = [...prev]
+        if (boutIndex + 1 < next.length) {
+          next[boutIndex + 1] = {
+            ...next[boutIndex + 1],
+            score1: next[boutIndex + 1].score1 === 0 ? lockedBout.score1 : next[boutIndex + 1].score1,
+            score2: next[boutIndex + 1].score2 === 0 ? lockedBout.score2 : next[boutIndex + 1].score2,
+          }
+        }
+        return syncCumulative(next)
+      })
     } catch (err) {
       console.error('Lock bout error:', err)
       alert(`⚠️ 鎖定失敗\n${err instanceof Error ? err.message : String(err)}`)
@@ -772,8 +755,7 @@ export function TeamMatchDetailModal({
     let raw = parseInt(value)
     if (isNaN(raw)) raw = 0
     const updated = bouts.map(b => b.order === order ? { ...b, [side]: raw } : b)
-    // 直接更新 bouts，不需要 syncCumulative（score 就是累積分）
-    setBouts(updated)
+    setBouts(syncCumulative(updated))
   }
 
   async function handleSubmit() {
@@ -811,7 +793,7 @@ export function TeamMatchDetailModal({
       if (!mainData.success) { alert(`⚠️ 更新主比分失敗\n${mainData.error || ''}`); return }
 
       onUpdate()
-      router.back()
+      onClose()
     } catch (err) {
       console.error('Submit error:', err)
       alert(`❌ 儲存失敗\n${err instanceof Error ? err.message : String(err)}`)
@@ -837,10 +819,26 @@ export function TeamMatchDetailModal({
 
   const stepTitle = ['決定賽序', '決定棒次', '比賽記分'][step - 1]
 
+  const handleBackClick = () => {
+    // 只在 step 3 且有未鎖定的分數時提醒
+    const hasUnlockedScores = step === 3 && bouts.some((b, idx) => idx > lockedBoutIndex && (b.score1 > 0 || b.score2 > 0))
+    if (hasUnlockedScores) {
+      if (!confirm('有未鎖定的分數將不被保存，確定要返回嗎？')) return
+    }
+    onClose()
+  }
+
   const content = (
     <div className="min-h-screen bg-gray-50">
       <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4">
+          <button
+            onClick={handleBackClick}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="返回"
+          >
+            <ArrowLeft size={20} className="text-gray-700" />
+          </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">團體賽登記</h1>
             <p className="text-xs text-gray-600 mt-0.5">{stepTitle}</p>
@@ -872,14 +870,13 @@ export function TeamMatchDetailModal({
               />
             )}
 
-            {step === 3 && team1 && team2 && seq1 && seq2 && (
+            {step === 3 && team1 && team2 && seq1 && (
               <Step3Scoreboard
                 team1={team1} team2={team2}
                 seq1={seq1} lineup1={lineup1} lineup2={lineup2}
                 team1SubTarget={team1SubTarget} team2SubTarget={team2SubTarget}
                 bouts={bouts} sideSwapped={sideSwapped}
-                isSubmitting={isSubmitting} isSavingLock={isSavingLock}
-                categoryId={categoryId}
+                isSubmitting={isSubmitting} isSavingLock={isSavingLock} lockedBoutIndex={lockedBoutIndex}
                 onScoreChange={handleScoreChange}
                 onLockBout={handleLockBout}
                 onSwapFencer={handleSwapFencer}
@@ -894,5 +891,15 @@ export function TeamMatchDetailModal({
     </div>
   )
 
+  // overlay 模式：套一個固定遮罩層，讓它像 Modal 一樣浮在上面
+  if (isOverlayMode) {
+    return (
+      <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+        {content}
+      </div>
+    )
+  }
+
+  // 全頁模式：直接 render
   return content
 }
