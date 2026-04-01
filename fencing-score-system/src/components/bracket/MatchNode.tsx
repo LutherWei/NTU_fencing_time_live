@@ -141,7 +141,7 @@ export function MatchNode({ match, competitionType, isAdmin = false, onUpdate }:
     // 輪空格
     if (isBye && !participant) {
       return (
-        <div className="px-3 py-2 text-center  text-sm text-gray-400">
+        <div className="px-3 py-2 text-sm text-gray-400">
           輪空
         </div>
       )
