@@ -537,9 +537,11 @@ function Step3Scoreboard({
       </div>
 
       <div className="flex justify-between mt-4">
-        <Button onClick={onSubmit} disabled={isSubmitting || hasErrors}>
-          {isSubmitting ? '儲存中...' : '儲存並更新總分'}
-        </Button>
+        {lockedBoutIndex === bouts.length - 1 && (
+          <Button onClick={onSubmit} disabled={isSubmitting || hasErrors}>
+            {isSubmitting ? '儲存中...' : '儲存並更新總分'}
+          </Button>
+        )}
       </div>
     </div>
   )

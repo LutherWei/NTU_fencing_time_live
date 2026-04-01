@@ -138,9 +138,7 @@ export function calculateQualifiedCount(totalFencers: number, eliminationRate: n
  * 判斷分數是否為勝利（V）
  * 小組賽打5分，拿到5分的記為V
  */
-export function isVictory(score: number): boolean {
-  return score >= 5
-}
+
 
 /**
  * 格式化分數顯示

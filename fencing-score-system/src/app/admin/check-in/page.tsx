@@ -679,21 +679,32 @@ export default function CheckInPage() {
             onChange={e => setNewTeamName(e.target.value)}
             placeholder="隊伍名稱"
           />
-          <h4 className="text-sm font-medium">隊員 (3-4名)</h4>
-          {teamMembers.map((member, index) => (
-            <Input
-              key={index}
-              value={member}
-              className="text-gray-900 font-medium"
-              onChange={e => {
-                const newMembers = [...teamMembers]
-                newMembers[index] = e.target.value
-                setTeamMembers(newMembers)
-              }}
-              placeholder={index === 3 ? '隊員 4 (選填)' : `隊員 ${index + 1}`}
-            />
-          ))}
-          <Button onClick={handleAddTeam} className="w-full">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium">隊員 (3-4名)</h4>
+              <span className={`text-sm font-medium ${teamMembers.filter(m => m.trim() !== '').length >= 3 ? 'text-green-600' : 'text-red-600'}`}>
+                {teamMembers.filter(m => m.trim() !== '').length}/3-4
+              </span>
+            </div>
+            {teamMembers.map((member, index) => (
+              <Input
+                key={index}
+                value={member}
+                className="text-gray-900 font-medium"
+                onChange={e => {
+                  const newMembers = [...teamMembers]
+                  newMembers[index] = e.target.value
+                  setTeamMembers(newMembers)
+                }}
+                placeholder={index === 3 ? '隊員 4 (選填)' : `隊員 ${index + 1}`}
+              />
+            ))}
+          </div>
+          <Button 
+            onClick={handleAddTeam} 
+            className="w-full"
+            disabled={teamMembers.filter(m => m.trim() !== '').length < 3 || !newTeamName.trim()}
+          >
             確定新增
           </Button>
         </div>

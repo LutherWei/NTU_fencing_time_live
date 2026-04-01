@@ -271,7 +271,7 @@ export function PouleMatrix({
                         {/* 團體賽：根據 isAdmin 和 completed 顯示不同內容 */}
                         {competitionType === 'TEAM' ? (
                           isAdmin ? (
-                            result ? (
+                            result?.score !== undefined ? (
                               // Admin + 已完成：顯示分數 + [比賽詳情]
                               <>
                                 <span className="font-bold text-lg">
@@ -281,7 +281,7 @@ export function PouleMatrix({
                                   variant="link" 
                                   size="sm" 
                                   className="mt-1 h-auto p-0 text-xs" 
-                                  onClick={(e) => handleSetDetail(e, matchMap.get(`${rowParticipant.id}-${colParticipant.id}`)!)}
+                                  onClick={(e) => handleOpenDetail(e, matchMap.get(`${rowParticipant.id}-${colParticipant.id}`)!)}
                                 >
                                   [比賽詳情]
                                 </Button>
