@@ -204,9 +204,9 @@ export function PouleMatrix({
   const handleSetDetail = (e: React.MouseEvent, match: PouleMatch) => {
     e.stopPropagation();
     
-    console.log('🔍 handleOpenDetail called:', { competitionType, isAdmin, completed: match.completed, matchId: match.id })
+    console.log('🔍 handleSetDetail called:', { competitionType, isAdmin, completed: match.completed, matchId: match.id })
     
-    // 團體賽 & 個人賽都用 overlay modal
+    // 打開 overlay modal 直接編輯
     setDetailingMatch(match);
   }
 
@@ -386,6 +386,20 @@ export function PouleMatrix({
             </div>
           </div>
         </Modal>
+      )}
+
+      {detailingMatch && (
+        <TeamMatchDetailModal
+          matchId={detailingMatch.id}
+          pouleId={pouleId}
+          isPouleMatch={true}
+          isOpen={!!detailingMatch}
+          onClose={() => setDetailingMatch(null)}
+          onUpdate={() => {
+            setDetailingMatch(null);
+            onScoreUpdate?.();
+          }}
+        />
       )}
     </div>
   )
