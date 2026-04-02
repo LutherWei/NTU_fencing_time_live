@@ -23,12 +23,15 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ username, password })
       })
 
       const data = await res.json()
 
       if (data.success) {
+        // 暫停一下確保 cookie 已設置
+        await new Promise(resolve => setTimeout(resolve, 100))
         router.push('/admin/dashboard')
         router.refresh()
       } else {

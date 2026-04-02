@@ -33,7 +33,7 @@ export async function setAuthCookie(token: string): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // 本地開發設為 false，允許 http 訪問
     sameSite: 'lax',
     maxAge: 60 * 60 * 24, // 24 hours
     path: '/'

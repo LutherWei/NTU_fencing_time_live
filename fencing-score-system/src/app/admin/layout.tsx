@@ -29,7 +29,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   const checkAuth = async () => {
     try {
-      const res = await fetch('/api/auth/me')
+      const res = await fetch('/api/auth/me', {
+        credentials: 'include'
+      })
       const data = await res.json()
       if (data.success) {
         setIsAuthenticated(true)
