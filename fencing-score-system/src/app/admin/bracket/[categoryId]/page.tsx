@@ -206,7 +206,7 @@ export default function BracketPage({ params }: PageProps) {
         <CardHeader>
           <CardTitle className="flex items-center">
             <Medal className="h-5 w-5 mr-2" />
-            當前排名
+            最終排名
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -241,9 +241,6 @@ export default function BracketPage({ params }: PageProps) {
                               displayRank === 3 ? 'text-amber-700' : 'text-gray-900'
                             }`}>
                               {displayRank}
-                              {(participant.finalRank || idx >= qualifiedCount) && (
-                                <span className="ml-1 text-xs text-green-600">(最終)</span>
-                              )}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-sm text-center text-gray-900">{participant.name}</td>
