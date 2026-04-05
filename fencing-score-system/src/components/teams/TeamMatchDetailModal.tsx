@@ -679,6 +679,11 @@ export function TeamMatchDetailModal({
   async function handleLockBout(boutIndex: number) {
     const currentBouts = bouts
     const lockedBout = currentBouts[boutIndex]
+    if(boutIndex == bouts.length - 1 && lockedBout.score1 === lockedBout.score2 ) {
+      alert('⚠️ 最後一局不可同分，請確認分數後再鎖定')
+      return
+    }
+
     setIsSavingLock(true)
     try {
       // 1. 存 bouts 細節
@@ -780,6 +785,13 @@ export function TeamMatchDetailModal({
       if (!detailData.success) { alert(`⚠️ 儲存詳細比分失敗\n${detailData.error || ''}`); return }
 
       const last = bouts[bouts.length - 1]
+      
+      // 檢查最後一場不可同分
+      if (last.score1 === last.score2) {
+        alert('⚠️ 不可以同分結束')
+        return
+      }
+      
       const isTeam1Seq123 = seq1 === '123'
       const finalScore1 = isTeam1Seq123 ? last.score1 : last.score2
       const finalScore2 = isTeam1Seq123 ? last.score2 : last.score1
