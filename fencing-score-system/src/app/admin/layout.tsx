@@ -1,15 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Navbar } from '@/components/layout/Navbar'
 import { 
   LayoutDashboard, 
   Users, 
-  Grid3X3, 
-  Trophy,
   ChevronRight
 } from 'lucide-react'
 
@@ -20,35 +19,16 @@ interface AdminLayoutProps {
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const [isLoading, setIsLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const { data: session, status } = useSession()
+
+  const isLoading = status === 'loading'
+  const isAuthenticated = status === 'authenticated'
 
   useEffect(() => {
-    checkAuth()
-  }, [])
-
-  const checkAuth = async () => {
-    try {
-      const res = await fetch('/api/auth/me', {
-        credentials: 'include'
-      })
-      const data = await res.json()
-      if (data.success) {
-        setIsAuthenticated(true)
-      } else {
-        // 如果未登入且不在登入頁面，重導向到登入頁
-        if (!pathname.includes('/admin/login')) {
-          router.push('/admin/login')
-        }
-      }
-    } catch {
-      if (!pathname.includes('/admin/login')) {
-        router.push('/admin/login')
-      }
-    } finally {
-      setIsLoading(false)
+    if (status === 'unauthenticated' && !pathname.includes('/admin/login')) {
+      router.push('/admin/login')
     }
-  }
+  }, [status, pathname, router])
 
   // 登入頁面不使用側邊欄佈局
   if (pathname === '/admin/login') {

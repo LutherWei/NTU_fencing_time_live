@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -20,22 +21,17 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username, password })
+      const result = await signIn('credentials', {
+        username,
+        password,
+        redirect: false,
       })
 
-      const data = await res.json()
-
-      if (data.success) {
-        // 暫停一下確保 cookie 已設置
-        await new Promise(resolve => setTimeout(resolve, 100))
+      if (result?.error) {
+        setError('帳號或密碼錯誤')
+      } else {
         router.push('/admin/dashboard')
         router.refresh()
-      } else {
-        setError(data.error || '登入失敗')
       }
     } catch {
       setError('登入失敗，請稍後再試')

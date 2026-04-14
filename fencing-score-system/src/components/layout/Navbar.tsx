@@ -2,45 +2,19 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useSession, signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import { User, LogOut } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 export function Navbar() {
   const pathname = usePathname()
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [username, setUsername] = useState('')
+  const { data: session, status } = useSession()
 
-  useEffect(() => {
-    checkAuth()
-  }, [pathname])
-
-  const checkAuth = async () => {
-    try {
-      const res = await fetch('/api/auth/me')
-      const data = await res.json()
-      if (data.success) {
-        setIsLoggedIn(true)
-        setUsername(data.data.username)
-      } else {
-        setIsLoggedIn(false)
-        setUsername('')
-      }
-    } catch {
-      setIsLoggedIn(false)
-      setUsername('')
-    }
-  }
+  const isLoggedIn = status === 'authenticated'
+  const username = session?.user?.name ?? ''
 
   const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' })
-      setIsLoggedIn(false)
-      setUsername('')
-      window.location.href = '/'
-    } catch (error) {
-      console.error('Logout error:', error)
-    }
+    await signOut({ redirectTo: '/' })
   }
 
   return (
