@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { PouleMatrix } from '@/components/poules/PouleMatrix'
 import { BracketTree } from '@/components/bracket/BracketTree'
 import { formatIndicator, formatWinRate, calculateQualifiedCount } from '@/lib/fencing-math'
-import { ArrowLeft, Trophy, Users, Award } from 'lucide-react'
+import { ArrowLeft, Trophy, Users, Award, ClipboardList } from 'lucide-react'
 import Link from 'next/link'
 import type { EliminationMatch } from '@/components/bracket/MatchNode'
 
@@ -23,6 +23,8 @@ interface Fencer {
   finalRank: number | null
   pouleRank: number | null
   teamId?: string | null
+  checkedIn: boolean
+  team?: { name: string } | null
 }
 
 interface Team {
@@ -37,6 +39,7 @@ interface Team {
   seedRank: number | null
   finalRank: number | null
   pouleRank: number | null
+  members?: Fencer[]
 }
 
 interface PouleMatch {
@@ -94,7 +97,7 @@ export default function ResultsPage({ params }: PageProps) {
   const { categoryId } = use(params)
   const [category, setCategory] = useState<Category | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'poules' | 'bracket' | 'rankings'>('poules')
+  const [activeTab, setActiveTab] = useState<'participants' | 'poules' | 'bracket' | 'rankings'>('participants')
 
   useEffect(() => {
     fetchCategory()
@@ -127,9 +130,13 @@ export default function ResultsPage({ params }: PageProps) {
 
         setCategory(categoryData)
 
-        if (
+        // 設定初始預設的 Tab
+        if (activeTab === 'participants' && categoryData.status === 'poule') {
+          setActiveTab('poules')
+        }
+        else if (
           (categoryData.status === 'elimination' || categoryData.status === 'finished') &&
-          activeTab === 'poules' &&
+          (activeTab === 'poules' || activeTab === 'participants') &&
           categoryData.bracket
         ) {
           setActiveTab('bracket')
@@ -256,6 +263,17 @@ export default function ResultsPage({ params }: PageProps) {
         <div className="border-b border-gray-200 mb-6">
           <nav className="-mb-px flex space-x-8">
             <button
+              onClick={() => setActiveTab('participants')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'participants'
+                  ? 'border-red-500 text-red-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <ClipboardList className="h-4 w-4 inline mr-2" />
+              參賽選手
+            </button>
+            <button
               onClick={() => setActiveTab('poules')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'poules'
@@ -292,6 +310,52 @@ export default function ResultsPage({ params }: PageProps) {
             )}
           </nav>
         </div>
+
+        {/* ── 參賽選手 tab ── */}
+        {activeTab === 'participants' && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-gray-900">
+              參賽{entityLabel} ({isTeam ? category.teams?.length : category.fencers.filter(f => f.checkedIn).length})
+            </h2>
+            {(isTeam ? category.teams?.length : category.fencers.filter(f => f.checkedIn).length) === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-gray-500">目前尚無{entityLabel}資料</CardContent>
+              </Card>
+            ) : (
+              isTeam ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {category.teams?.map((team) => (
+                    <Card key={team.id}>
+                      <CardHeader className="pb-3 border-b border-gray-100">
+                        <CardTitle className="text-lg text-gray-900">{team.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-3">
+                        <ul className="space-y-2">
+                          {team.members?.map((fencer) => (
+                            <li key={fencer.id} className="flex items-center text-gray-700">
+                              <span className="w-2 h-2 bg-red-600 rounded-full mr-2"></span>
+                              {fencer.name}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {category.fencers
+                    .filter(f => f.checkedIn)
+                    .map(fencer => (
+                      <div key={fencer.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-center">
+                        <span className="font-medium text-gray-900">{fencer.name}</span>
+                      </div>
+                    ))}
+                </div>
+              )
+            )}
+          </div>
+        )}
 
         {/* ── 分組賽 tab ── */}
         {activeTab === 'poules' && (
