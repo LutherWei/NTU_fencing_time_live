@@ -14,7 +14,7 @@ export function Navbar() {
   const username = session?.user?.name ?? ''
 
   const handleLogout = async () => {
-    await signOut({ redirectTo: '/' })
+    await signOut({ redirectTo: window.location.origin })
   }
 
   return (
