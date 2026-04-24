@@ -279,14 +279,14 @@ export default function MatchDetailViewPage({ params, searchParams }: PageProps)
               {renderRosterCard(
                 r1Team,
                 [1, 2, 3],
-                lineup1,
+                seq1 === '123' ? lineup1 : lineup2,
               )}
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
               {renderRosterCard(
                 r2Team,
                 [4, 5, 6],
-                lineup2,
+                seq1 === '123' ? lineup2 : lineup1,
               )}
             </div>
           </div>
