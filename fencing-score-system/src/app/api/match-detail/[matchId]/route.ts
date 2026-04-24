@@ -56,14 +56,31 @@ export async function GET(request: Request, { params }: RouteParams) {
         )
       }
 
-      // 如果 detail 不存在，自動創建
+      // 如果 detail 不存在，自動創建（處理併發的 P2002 錯誤）
       let detail = pouleMatch.detail
       if (!detail) {
-        detail = await prisma.teamMatchDetail.create({
-          data: {
-            pouleMatchId: matchId
+        try {
+          detail = await prisma.teamMatchDetail.create({
+            data: {
+              pouleMatchId: matchId
+            }
+          })
+        } catch (e: any) {
+          if (e.code === 'P2002') {
+            detail = await prisma.teamMatchDetail.findUnique({
+              where: { pouleMatchId: matchId }
+            }) as typeof detail
+          } else {
+            throw e
           }
-        })
+        }
+      }
+
+      if (!detail) {
+        return NextResponse.json(
+          { success: false, error: '無法創建或取得比賽詳情' },
+          { status: 500 }
+        )
       }
 
       // 獲取隊伍詳情
@@ -138,14 +155,31 @@ export async function GET(request: Request, { params }: RouteParams) {
         )
       }
 
-      // 如果 detail 不存在，自動創建
+      // 如果 detail 不存在，自動創建（處理併發的 P2002 錯誤）
       let detail = eliminationMatch.detail
       if (!detail) {
-        detail = await prisma.teamMatchDetail.create({
-          data: {
-            eliminationMatchId: matchId
+        try {
+          detail = await prisma.teamMatchDetail.create({
+            data: {
+              eliminationMatchId: matchId
+            }
+          })
+        } catch (e: any) {
+          if (e.code === 'P2002') {
+            detail = await prisma.teamMatchDetail.findUnique({
+              where: { eliminationMatchId: matchId }
+            }) as typeof detail
+          } else {
+            throw e
           }
-        })
+        }
+      }
+
+      if (!detail) {
+        return NextResponse.json(
+          { success: false, error: '無法創建或取得比賽詳情' },
+          { status: 500 }
+        )
       }
 
       // 獲取並排序 bouts
@@ -224,14 +258,37 @@ export async function POST(request: Request, { params }: RouteParams) {
         )
       }
 
-      // 創建新的 TeamMatchDetail
-      detail = await prisma.teamMatchDetail.create({
-        data: {
-          pouleMatchId: pouleMatch ? matchId : undefined,
-          eliminationMatchId: eliminationMatch ? matchId : undefined
-        },
-        include: { bouts: true }
-      })
+      // 創建新的 TeamMatchDetail（處理併發的 P2002 錯誤）
+      try {
+        detail = await prisma.teamMatchDetail.create({
+          data: {
+            pouleMatchId: pouleMatch ? matchId : undefined,
+            eliminationMatchId: eliminationMatch ? matchId : undefined
+          },
+          include: { bouts: true }
+        })
+      } catch (e: any) {
+        if (e.code === 'P2002') {
+          detail = await prisma.teamMatchDetail.findFirst({
+            where: {
+              OR: [
+                { pouleMatchId: matchId },
+                { eliminationMatchId: matchId }
+              ]
+            },
+            include: { bouts: true }
+          })
+        } else {
+          throw e
+        }
+      }
+
+      if (!detail) {
+        return NextResponse.json(
+          { success: false, error: '無法創建或保存比賽詳情' },
+          { status: 500 }
+        )
+      }
     }
 
     // 刪除舊的 bouts

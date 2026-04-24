@@ -257,6 +257,44 @@ function Step2Lineup({ team1, team2, seq1, seq2, lineup1, lineup2, onAssign, onN
         <LineupPanel team={team1} seq={seq1} lineup={lineup1} teamKey="team1" />
         <LineupPanel team={team2} seq={seq2} lineup={lineup2} teamKey="team2" />
       </div>
+
+      <div className="mt-8 mb-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+        <h3 className="text-sm font-bold text-gray-800 mb-3">對戰賽序表</h3>
+        <div className="overflow-hidden rounded-md border border-gray-200">
+          <table className="w-full text-sm text-center">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="py-2 px-3 font-medium text-gray-600">局數</th>
+                <th className="py-2 px-3 font-medium text-gray-600">左方選手 ({seq1 === '123' ? '123' : '456'})</th>
+                <th className="py-2 px-3 font-medium text-gray-600">右方選手 ({seq1 === '123' ? '456' : '123'})</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {BOUT_SCHEDULE.map((sched) => {
+                const r1IsLeft = seq1 === '123'
+                const leftRole = r1IsLeft ? sched.r1 : sched.r2
+                const rightRole = r1IsLeft ? sched.r2 : sched.r1
+                return (
+                  <tr key={sched.round} className="hover:bg-gray-50/50">
+                    <td className="py-2 px-3 text-gray-500 font-medium">第 {sched.round} 局</td>
+                    <td className="py-2 px-3">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                        {leftRole}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-50 text-orange-700 text-xs font-semibold">
+                        {rightRole}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
       <div className="flex justify-end mt-4">
         <Button onClick={onNext} disabled={!complete}>確認棒次並開始記分 →</Button>
       </div>

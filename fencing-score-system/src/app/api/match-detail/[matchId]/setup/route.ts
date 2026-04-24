@@ -42,13 +42,38 @@ export async function POST(request: Request, { params }: RouteParams) {
     })
 
     if (!detail) {
-      detail = await prisma.teamMatchDetail.create({
-        data: {
-          pouleMatchId: pouleMatch ? matchId : undefined,
-          eliminationMatchId: eliminationMatch ? matchId : undefined,
-          setupData: JSON.stringify(setupPayload)
-        } as any
-      })
+      try {
+        detail = await prisma.teamMatchDetail.create({
+          data: {
+            pouleMatchId: pouleMatch ? matchId : undefined,
+            eliminationMatchId: eliminationMatch ? matchId : undefined,
+            setupData: JSON.stringify(setupPayload)
+          } as any
+        })
+      } catch (e: any) {
+        if (e.code === 'P2002') {
+          detail = await prisma.teamMatchDetail.findFirst({
+            where: {
+              OR: [
+                { pouleMatchId: matchId },
+                { eliminationMatchId: matchId }
+              ]
+            }
+          })
+          if (detail) {
+            detail = await prisma.teamMatchDetail.update({
+              where: { id: detail.id },
+              data: {
+                setupData: JSON.stringify(setupPayload)
+              } as any
+            })
+          } else {
+            throw e
+          }
+        } else {
+          throw e
+        }
+      }
     } else {
       // 更新現有的 setup 數據
       detail = await prisma.teamMatchDetail.update({
